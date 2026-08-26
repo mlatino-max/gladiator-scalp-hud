@@ -1114,23 +1114,25 @@ document.addEventListener("keydown", e=>{
   lobes.forEach(L=>{
     const mat=new THREE.MeshStandardMaterial({
       color:L.color, emissive:L.color, emissiveIntensity:0.7,
-      metalness:0.15, roughness:0.28, transparent:true, opacity:0.55
+      metalness:0.15, roughness:0.28, transparent:true, opacity:0.22
     });
     const m=new THREE.Mesh(new THREE.SphereGeometry(1, 36, 28), mat);
     m.position.set(...L.p); m.scale.set(...L.s); m.userData.view=L.view;
     brain.add(m); meshes.push(m);
   });
 
-  const disc=new THREE.Mesh(
-    new THREE.CircleGeometry(2.05, 64),
-    new THREE.MeshBasicMaterial({map:tex, transparent:true, side:THREE.DoubleSide, depthWrite:false})
-  );
-  disc.position.z=0.15;
-  brain.add(disc);
-  const discB=disc.clone();
-  discB.material=new THREE.MeshBasicMaterial({map:coreTex, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false});
-  discB.rotation.y=Math.PI; discB.position.z=-0.15;
-  brain.add(discB);
+  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:tex, transparent:true, depthTest:false, depthWrite:false
+  }));
+  sprite.scale.set(4.55, 4.55, 1);
+  sprite.renderOrder=2;
+  scene.add(sprite);
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({
+    map:coreTex, transparent:true, opacity:0.18, depthTest:false, depthWrite:false
+  }));
+  halo.scale.set(5.1, 5.1, 1);
+  halo.renderOrder=1;
+  scene.add(halo);
 
   scene.add(new THREE.AmbientLight(0x1a2a44, 0.9));
   const l1=new THREE.PointLight(0x00e8ff, 36, 22); l1.position.set(-4,2,5); scene.add(l1);
@@ -1167,10 +1169,10 @@ document.addEventListener("keydown", e=>{
     if(hit) goto(hit.object.userData.view);
   });
   function frame(){
-    if(auto) theta+=0.004;
-    camera.position.set(Math.cos(theta)*Math.sin(phi)*dist, Math.cos(phi)*dist*0.55, Math.sin(theta)*Math.sin(phi)*dist);
+    if(auto) theta+=0.0035;
+    camera.position.set(Math.cos(theta)*Math.sin(phi)*dist, 0.35+Math.cos(phi)*dist*0.35, Math.sin(theta)*Math.sin(phi)*dist);
     camera.lookAt(0,0,0);
-    brain.rotation.y+= auto?0.002:0;
+    brain.rotation.y+= auto?0.003:0;
     renderer.render(scene,camera);
     requestAnimationFrame(frame);
   }
