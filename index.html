@@ -1,0 +1,1200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GLADIATOR SCALP // COMMAND HUD</title>
+<script>if(location.hash) document.documentElement.classList.add("skip-boot");</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#03060c; --bg2:#070c16; --panel:rgba(8,18,36,.88); --panel2:rgba(12,24,46,.95);
+  --line:rgba(0,220,255,.22); --line2:rgba(255,122,0,.28);
+  --cyan:#00e8ff; --blue:#3d8bff; --orange:#ff6a00; --yellow:#ffe14a;
+  --ink:#e8f7ff; --dim:#7ea0b8; --bad:#ff3b5c; --ok:#39ff9a;
+  --glow-c:0 0 18px rgba(0,232,255,.55), 0 0 42px rgba(0,232,255,.22);
+  --glow-o:0 0 18px rgba(255,106,0,.55), 0 0 42px rgba(255,106,0,.2);
+  --glow-y:0 0 16px rgba(255,225,74,.5);
+  --font:"Rajdhani",sans-serif; --disp:"Orbitron",sans-serif; --mono:"Share Tech Mono",monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:var(--cyan);text-decoration:none}
+a:hover{color:var(--yellow);text-shadow:var(--glow-y)}
+.hidden{display:none !important}
+
+/* atmosphere */
+body::before{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(0,180,255,.16), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgba(255,90,0,.12), transparent 55%),
+    radial-gradient(700px 400px at 80% 110%, rgba(255,225,74,.08), transparent 50%),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgba(0,0,0,.18) 2px 3px);
+}
+#app{position:relative;z-index:1;height:100%;display:grid;
+  grid-template-columns:268px 1fr 300px;grid-template-rows:64px 1fr 34px;
+  grid-template-areas:"top top top" "nav main side" "tick tick tick";}
+
+/* boot */
+#boot{position:fixed;inset:0;z-index:50;background:#010309;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;
+  transition:opacity .7s ease, visibility .7s}
+html.skip-boot #boot{display:none !important}
+#boot.out{opacity:0;visibility:hidden;display:none !important}
+#boot img{width:120px;height:120px;filter:drop-shadow(0 0 24px #00e8ff)}
+#boot h1{font-family:var(--disp);letter-spacing:.28em;font-size:18px;margin:0;color:var(--cyan);text-shadow:var(--glow-c)}
+.boot-bar{width:280px;height:6px;background:#0b1a28;border:1px solid var(--cyan);box-shadow:var(--glow-c);overflow:hidden}
+.boot-bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--yellow),var(--orange));animation:load 1.6s ease forwards}
+@keyframes load{to{width:100%}}
+.boot-log{font-family:var(--mono);font-size:11px;color:var(--dim);height:64px;width:320px;text-align:left}
+
+/* top */
+header.top{grid-area:top;display:flex;align-items:center;gap:16px;padding:0 16px;
+  background:linear-gradient(180deg,rgba(4,12,24,.95),rgba(4,12,24,.55));
+  border-bottom:1px solid var(--line);box-shadow:0 8px 30px rgba(0,0,0,.45)}
+.brand{display:flex;align-items:center;gap:10px}
+.brand img{width:36px;height:36px;border-radius:50%;box-shadow:var(--glow-c)}
+.brand h1{margin:0;font-family:var(--disp);font-size:13px;letter-spacing:.22em}
+.brand small{display:block;color:var(--dim);letter-spacing:.18em;font-size:9px}
+.clock-block{margin-left:auto;text-align:right;font-family:var(--mono)}
+.clock-block .t{font-size:18px;color:var(--yellow);text-shadow:var(--glow-y)}
+.clock-block .s{font-size:10px;color:var(--dim);letter-spacing:.12em}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);padding:4px 10px;border-radius:999px;font-size:11px;letter-spacing:.08em;background:rgba(0,20,40,.5)}
+.chip b{color:var(--cyan)}
+.chip.ok{border-color:var(--ok);color:var(--ok);box-shadow:0 0 12px rgba(57,255,154,.25)}
+.chip.warn{border-color:var(--orange);color:var(--orange);box-shadow:var(--glow-o)}
+.chip.bad{border-color:var(--bad);color:var(--bad)}
+.icon-btn{background:transparent;border:1px solid var(--line);color:var(--cyan);padding:6px 10px;cursor:pointer;border-radius:6px}
+.icon-btn:hover{box-shadow:var(--glow-c);border-color:var(--cyan)}
+
+/* nav */
+nav.rail{grid-area:nav;overflow:auto;padding:12px 10px;border-right:1px solid var(--line);background:rgba(3,8,16,.72)}
+nav.rail h2{margin:8px 8px 6px;font-size:10px;letter-spacing:.22em;color:var(--dim);font-family:var(--disp)}
+.nav-btn{width:100%;display:flex;align-items:center;gap:10px;padding:9px 10px;margin:4px 0;background:transparent;border:1px solid transparent;border-left:3px solid transparent;cursor:pointer;text-align:left;color:var(--dim)}
+.nav-btn img{width:34px;height:34px;border-radius:8px;object-fit:cover;filter:saturate(1.2)}
+.nav-btn .k{font-family:var(--disp);font-size:10px;letter-spacing:.14em;color:var(--cyan)}
+.nav-btn .n{display:block;font-size:14px;font-weight:700;color:var(--ink)}
+.nav-btn:hover,.nav-btn.on{background:linear-gradient(90deg,rgba(0,232,255,.08),transparent);border-color:var(--line);border-left-color:var(--cyan);box-shadow:inset 0 0 18px rgba(0,232,255,.08)}
+.nav-btn.f3:hover,.nav-btn.f3.on{border-left-color:var(--orange)}
+.nav-btn.f4:hover,.nav-btn.f4.on{border-left-color:var(--yellow)}
+.lobe-map{position:relative;width:216px;height:216px;margin:6px auto 14px;border-radius:50%;
+  box-shadow:0 0 0 1px rgba(0,232,255,.35), 0 0 28px rgba(0,232,255,.25)}
+.lobe-map img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+.lobe-map .hot{position:absolute;border:0;padding:0;cursor:pointer;border-radius:40%;background:transparent}
+.lobe-map .hot:hover{box-shadow:inset 0 0 18px rgba(255,255,255,.18)}
+.hot.f1{left:50%;top:58%;width:36%;height:34%}
+.hot.f2{left:6%;top:16%;width:50%;height:50%}
+.hot.f3{left:40%;top:36%;width:54%;height:42%}
+.hot.f4{left:40%;top:8%;width:46%;height:36%}
+.brain-wrap{position:relative}
+.brain-tags{position:absolute;inset:8px;pointer-events:none}
+.brain-tags button{pointer-events:auto;position:absolute;background:rgba(4,10,18,.72);border:1px solid;padding:4px 8px;
+  font-family:var(--disp);font-size:9px;letter-spacing:.14em;cursor:pointer;border-radius:4px}
+.brain-tags .t1{left:6%;bottom:10%;border-color:var(--cyan);color:var(--cyan);box-shadow:var(--glow-c)}
+.brain-tags .t2{left:4%;top:18%;border-color:var(--blue);color:#9cf}
+.brain-tags .t3{right:4%;bottom:28%;border-color:var(--orange);color:var(--orange);box-shadow:var(--glow-o)}
+.brain-tags .t4{right:8%;top:12%;border-color:var(--yellow);color:var(--yellow);box-shadow:var(--glow-y)}
+
+/* main */
+main{grid-area:main;overflow:auto;padding:14px 16px 28px;position:relative}
+.view{display:none;animation:rise .35s ease}
+.view.on{display:block}
+@keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.view-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
+.view-head h2{margin:0;font-family:var(--disp);letter-spacing:.18em;font-size:20px;color:#b8f7ff;text-shadow:0 0 8px #00e8ff, 0 0 24px #00e8ff, 0 0 48px rgba(0,232,255,.45)}
+.view-head p{margin:4px 0 0;color:var(--dim);font-size:14px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin:8px 0 14px;border-bottom:1px solid var(--line)}
+.tabs button{background:transparent;border:0;border-bottom:2px solid transparent;color:var(--dim);padding:8px 12px;cursor:pointer;letter-spacing:.12em;font-size:12px}
+.tabs button.on{color:var(--cyan);border-bottom-color:var(--cyan);text-shadow:var(--glow-c)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px;
+  box-shadow:inset 0 0 0 1px rgba(0,232,255,.05), 0 0 24px rgba(0,232,255,.05);backdrop-filter:blur(10px);position:relative}
+.panel::before,.panel::after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--cyan);opacity:.7}
+.panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+.panel.hot{border-color:var(--orange);box-shadow:0 0 24px rgba(255,106,0,.12)}
+.panel.gold{border-color:rgba(255,225,74,.4)}
+.grid{display:grid;gap:12px}
+.g2{grid-template-columns:1.2fr .8fr}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g5{grid-template-columns:repeat(5,1fr)}
+@media (max-width:1180px){
+  #app{grid-template-columns:220px 1fr;grid-template-areas:"top top" "nav main" "tick tick"}
+  .side{display:none}
+  .g2,.g3,.g4,.g5{grid-template-columns:1fr}
+}
+.menu-btn{display:none}
+@media (max-width:900px){
+  .menu-btn{display:inline-flex}
+  #app{grid-template-columns:1fr;grid-template-areas:"top" "main" "tick"}
+  nav.rail{position:fixed;top:64px;left:0;bottom:34px;width:min(280px,88vw);z-index:25;
+    transform:translateX(-110%);transition:transform .25s ease;box-shadow:var(--glow-c)}
+  nav.rail.open{transform:none}
+  .g2,.g3,.g4,.g5{grid-template-columns:1fr}
+  header.top{flex-wrap:wrap;height:auto;padding:8px}
+  #app{grid-template-rows:auto 1fr 34px}
+}
+#boot.out{pointer-events:none}
+.kpi{padding:10px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}
+.kpi .l{font-size:10px;letter-spacing:.16em;color:var(--dim)}
+.kpi .v{font-family:var(--disp);font-size:22px;margin-top:2px;text-shadow:var(--glow-c)}
+.kpi.warn .v{color:var(--orange);text-shadow:var(--glow-o)}
+.kpi.bad .v{color:var(--bad)}
+.kpi.ok .v{color:var(--ok)}
+.kpi.gold .v{color:var(--yellow);text-shadow:var(--glow-y)}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10px;letter-spacing:.14em;color:var(--dim);padding:8px 6px;border-bottom:1px solid var(--line);cursor:pointer}
+td{padding:8px 6px;border-bottom:1px solid rgba(0,232,255,.08);font-family:var(--mono);font-size:12px}
+tr:hover td{background:rgba(0,232,255,.05);cursor:pointer}
+.pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:10px;letter-spacing:.08em;border:1px solid}
+.pill.go{color:var(--ok);border-color:var(--ok)}
+.pill.no{color:var(--bad);border-color:var(--bad)}
+.pill.mid{color:var(--yellow);border-color:var(--yellow)}
+.bar{height:8px;background:#0b1824;border:1px solid var(--line);border-radius:99px;overflow:hidden}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--yellow),var(--orange));box-shadow:var(--glow-c)}
+
+label{display:block;font-size:11px;letter-spacing:.12em;color:var(--dim);margin:8px 0 4px}
+input,select,textarea{width:100%;background:#071018;border:1px solid var(--line);padding:8px 10px;border-radius:6px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--cyan);box-shadow:var(--glow-c)}
+.btn{background:linear-gradient(90deg,#003848,#00b8cc);border:1px solid var(--cyan);color:#021018;font-weight:700;letter-spacing:.12em;padding:8px 14px;cursor:pointer;border-radius:6px;box-shadow:var(--glow-c)}
+.btn:hover{filter:brightness(1.1)}
+.btn.orange{background:linear-gradient(90deg,#4a1a00,#ff6a00);border-color:var(--orange);color:#1a0800;box-shadow:var(--glow-o)}
+.btn.ghost{background:transparent;color:var(--cyan)}
+.btn.gold{background:linear-gradient(90deg,#4a3d00,#ffe14a);border-color:var(--yellow);color:#1a1400;box-shadow:var(--glow-y)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
+#tower{width:100%;height:420px;border:1px solid var(--line);border-radius:10px;background:#02060c;box-shadow:var(--glow-c);cursor:grab}
+.hero{position:relative;min-height:180px;border-radius:10px;overflow:hidden;border:1px solid var(--line);margin-bottom:12px}
+.hero img{width:100%;height:180px;object-fit:cover;opacity:.55;filter:saturate(1.3) contrast(1.1)}
+.hero .cap{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;padding:16px;
+  background:linear-gradient(180deg,transparent,rgba(2,6,12,.92))}
+.hero .cap h3{margin:0;font-family:var(--disp);letter-spacing:.2em;text-shadow:var(--glow-c)}
+
+.side{grid-area:side;overflow:auto;border-left:1px solid var(--line);padding:12px;background:rgba(3,8,16,.72)}
+.side h3{font-family:var(--disp);font-size:11px;letter-spacing:.18em;color:var(--orange);margin:0 0 8px}
+.ticket-card{font-family:var(--mono);font-size:12px;line-height:1.55;color:var(--dim)}
+.ticket-card b{color:var(--ink)}
+.gate{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid rgba(0,232,255,.08);font-size:12px}
+.gate .st{font-family:var(--mono)}
+
+footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);background:#02060c;display:flex;align-items:center}
+.tick span{display:inline-block;white-space:nowrap;padding-left:100%;animation:marquee 38s linear infinite;font-family:var(--mono);font-size:11px;color:var(--cyan);letter-spacing:.08em}
+@keyframes marquee{to{transform:translateX(-100%)}}
+
+/* palette + modal */
+#palette,#modal{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.62);display:none;align-items:flex-start;justify-content:center;padding-top:12vh}
+#palette.on,#modal.on{display:flex}
+#palette .box,#modal .box{width:min(720px,92vw);background:#071018;border:1px solid var(--cyan);box-shadow:var(--glow-c);border-radius:10px;padding:12px}
+#palette input{border-color:var(--orange)}
+.plist button{width:100%;text-align:left;background:transparent;border:0;padding:8px;cursor:pointer;color:var(--ink)}
+.plist button:hover{background:rgba(0,232,255,.08)}
+
+.code{font-family:var(--mono);font-size:12px;background:#040a12;border:1px solid var(--line);padding:10px;border-radius:6px;white-space:pre-wrap;color:var(--yellow)}
+.warn-banner{border:1px solid var(--orange);color:var(--orange);padding:8px 12px;margin-bottom:10px;font-size:13px;box-shadow:var(--glow-o)}
+.ok-banner{border:1px solid var(--ok);color:var(--ok);padding:8px 12px;margin-bottom:10px}
+.grave td{color:#9bb}
+.link-grid a{display:block;padding:10px;border:1px solid var(--line);margin:6px 0;border-radius:8px;background:rgba(0,20,40,.4)}
+.link-grid a:hover{border-color:var(--orange);box-shadow:var(--glow-o)}
+.emblem{width:72px;height:72px;border-radius:12px;object-fit:cover;box-shadow:var(--glow-c)}
+</style>
+</head>
+<body>
+<div id="boot">
+  <img src="assets/neural-core.jpg" alt="core" />
+  <h1>GLADIATOR SCALP</h1>
+  <div class="boot-bar"><i></i></div>
+  <div class="boot-log" id="bootLog"></div>
+</div>
+
+<div id="app">
+  <header class="top">
+    <button class="icon-btn menu-btn" id="btnMenu" title="Menu">☰ FLOORS</button>
+    <div class="brand">
+      <img src="assets/neural-core.jpg" alt="" />
+      <div>
+        <h1>GLADIATOR SCALP</h1>
+        <small>FOUR-FLOOR COMMAND HUD // PAPER FIRST</small>
+      </div>
+    </div>
+    <span class="chip" id="phaseChip"><b>PHASE</b>&nbsp;<span id="phase">BOOT</span></span>
+    <span class="chip ok" id="modeChip">PAPER · PA32F9675IY4</span>
+    <span class="chip warn" id="verdictChip">SCAN · LOADING</span>
+    <button class="icon-btn" id="btnPalette" title="Command palette">⌘K</button>
+    <div class="clock-block">
+      <div class="t" id="clock">--:--:--</div>
+      <div class="s" id="clockSub">AMERICA/NEW_YORK · NEXT EVENT --</div>
+    </div>
+  </header>
+
+  <nav class="rail">
+    <h2>STRUCTURE</h2>
+    <div class="lobe-map" title="Click a neural-core lobe">
+      <img src="assets/neural-core-4lobe.jpg" alt="neural core four lobes" />
+      <button class="hot f2" data-go="f2" title="F2 Analyze"></button>
+      <button class="hot f1" data-go="f1" title="F1 Ingest"></button>
+      <button class="hot f3" data-go="f3" title="F3 Decide"></button>
+      <button class="hot f4" data-go="f4" title="F4 Execute"></button>
+    </div>
+    <button class="nav-btn on" data-go="deck"><span><span class="k">00</span><span class="n">Command Deck</span></span></button>
+    <button class="nav-btn" data-go="f1"><img src="assets/floor1.jpg" alt="" /><span><span class="k">01 · INGEST</span><span class="n">Market Data</span></span></button>
+    <button class="nav-btn" data-go="f2"><img src="assets/floor2.jpg" alt="" /><span><span class="k">02 · ANALYZE</span><span class="n">Multi-Variable</span></span></button>
+    <button class="nav-btn f3" data-go="f3"><img src="assets/floor3.jpg" alt="" /><span><span class="k">03 · DECIDE</span><span class="n">Intelligent Ticket</span></span></button>
+    <button class="nav-btn f4" data-go="f4"><img src="assets/floor4.jpg" alt="" /><span><span class="k">04 · EXECUTE</span><span class="n">Precise Execution</span></span></button>
+    <h2>OPS</h2>
+    <button class="nav-btn" data-go="lab"><span><span class="k">LAB</span><span class="n">Analysis Lab</span></span></button>
+    <button class="nav-btn" data-go="book"><span><span class="k">DOCTRINE</span><span class="n">Playbook</span></span></button>
+    <button class="nav-btn" data-go="console"><span><span class="k">PIPE</span><span class="n">Ops Console</span></span></button>
+  </nav>
+
+  <main>
+    <!-- DECK -->
+    <section class="view on" data-view="deck">
+      <div class="hero">
+        <img src="assets/neural-core-4lobe.jpg" alt="neural core four trading lobes" />
+        <div class="cap">
+          <h3>NEURAL CORE ONLINE</h3>
+          <p>Four lobes, four floors. Click a section of the brain — cyan ingest, blue analyze, orange decide, yellow execute. Selectivity is the edge.</p>
+        </div>
+      </div>
+      <div class="grid g2">
+        <div class="panel">
+          <div class="view-head"><h2>NEURAL CORE</h2><p>Drag to orbit · click a lobe to enter that floor</p></div>
+          <div class="brain-wrap">
+            <canvas id="tower"></canvas>
+            <div class="brain-tags">
+              <button class="t1" data-go="f1">F1 · INGEST</button>
+              <button class="t2" data-go="f2">F2 · ANALYZE</button>
+              <button class="t3" data-go="f3">F3 · DECIDE</button>
+              <button class="t4" data-go="f4">F4 · EXECUTE</button>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="grid g2">
+            <div class="kpi" id="kpiVerdict"><div class="l">TODAY</div><div class="v">NO TRADE</div></div>
+            <div class="kpi gold"><div class="l">EQUITY</div><div class="v" id="kpiEq">$750</div></div>
+            <div class="kpi"><div class="l">1R RISK</div><div class="v" id="kpiR">$15.00</div></div>
+            <div class="kpi"><div class="l">N=40 GATE</div><div class="v" id="kpiN">0/40</div></div>
+          </div>
+          <div class="panel hot" style="margin-top:12px">
+            <h3 style="margin:0 0 8px;font-family:var(--disp);letter-spacing:.14em;font-size:12px;color:var(--orange)">LIVE DESK STATUS</h3>
+            <div id="deskStatus" class="ticket-card"></div>
+            <div class="row" style="margin-top:10px">
+              <button class="btn" data-go="f1">OPEN FLOOR 1</button>
+              <button class="btn orange" data-go="f3">BUILD TICKET</button>
+            </div>
+          </div>
+          <div class="panel gold">
+            <h3 style="margin:0 0 8px;font-family:var(--disp);letter-spacing:.14em;font-size:12px;color:var(--yellow)">NEXT EVENT</h3>
+            <div class="kpi gold"><div class="l" id="nextLbl">COUNTDOWN</div><div class="v" id="nextT">--</div></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- F1 -->
+    <section class="view" data-view="f1">
+      <div class="view-head">
+        <div><h2>1ST FLOOR // MARKET DATA INGESTION</h2><p>Raw tape in · clean candidate table out · 09:45 ET is the primary data event</p></div>
+        <img class="emblem" src="assets/floor1.jpg" alt="" />
+      </div>
+      <div class="tabs" data-tabs="f1">
+        <button class="on" data-tab="uni">Universe</button>
+        <button data-tab="sched">Schedule</button>
+        <button data-tab="src">Sources</button>
+        <button data-tab="cap">Capture</button>
+      </div>
+      <div data-pane="uni">
+        <div class="row" style="margin-bottom:8px">
+          <input id="uniFilter" placeholder="filter symbol…" style="max-width:240px" />
+          <button class="btn ghost" id="btnBand">IN-BAND ONLY</button>
+          <button class="btn ghost" id="btnResetScan">RESET EDITS</button>
+        </div>
+        <div class="panel">
+          <table id="uniTable"></table>
+        </div>
+      </div>
+      <div data-pane="sched" class="hidden">
+        <div class="grid g3">
+          <div class="kpi"><div class="l">09:00 ET</div><div class="v">PRE-MARKET</div></div>
+          <div class="kpi gold"><div class="l">09:45 ET</div><div class="v">OR CAPTURE</div></div>
+          <div class="kpi"><div class="l">16:10 ET</div><div class="v">ARCHIVE</div></div>
+        </div>
+        <div class="panel">
+          <p>At 09:45 the floor captures for every symbol: gap %, opening-range RVOL, OR high/low, last price, bid/ask spread. Spread &gt; 0.2% of price disqualifies. Inverse/volatility ETPs, OTC, warrants, and sub-$3 names never enter.</p>
+        </div>
+      </div>
+      <div data-pane="src" class="hidden">
+        <div class="panel">
+          <table>
+            <tr><th>Source</th><th>What</th><th>How</th></tr>
+            <tr><td>Alpaca screener</td><td>Most-active, gainers/losers</td><td>MCP / alpaca-py</td></tr>
+            <tr><td>Alpaca market data</td><td>5-min OHLCV, snapshots, quotes</td><td>same</td></tr>
+            <tr><td>yfinance fallback</td><td>5-min bars, 30d RVOL baseline</td><td>scanner.py</td></tr>
+            <tr><td>Alpaca clock</td><td>Open/close, half-days</td><td>get_clock</td></tr>
+          </table>
+        </div>
+      </div>
+      <div data-pane="cap" class="hidden">
+        <div class="panel">
+          <p>Edit gap and RVOL on the Universe tab. Score = |gap%| + OR RVOL. Click a row to promote it to Floor 2/3. Dynamic additions: top-10 trade count + top-10 gainers if they pass the $3–$100 band and spread gate.</p>
+          <p>Static core: SOXL TQQQ INTC SOFI NIO RIVN LCID AAL MARA F PLTR AMD MU AAPL TSLA</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- F2 -->
+    <section class="view" data-view="f2">
+      <div class="view-head">
+        <div><h2>2ND FLOOR // MULTI-VARIABLE ANALYSIS</h2><p>Trade the day, not the calendar. Only the top-1 in-play name advances.</p></div>
+        <img class="emblem" src="assets/floor2.jpg" alt="" />
+      </div>
+      <div class="tabs" data-tabs="f2">
+        <button class="on" data-tab="rank">Rank</button>
+        <button data-tab="gates">Gates</button>
+        <button data-tab="grave">Graveyard</button>
+        <button data-tab="reg">Regime</button>
+      </div>
+      <div data-pane="rank">
+        <div class="grid g3">
+          <div class="kpi"><div class="l">MIN SCORE</div><div class="v">2.00</div></div>
+          <div class="kpi" id="kpiTop"><div class="l">TOP NAME</div><div class="v">—</div></div>
+          <div class="kpi" id="kpiPlay"><div class="l">IN PLAY?</div><div class="v">NO</div></div>
+        </div>
+        <div class="panel"><table id="rankTable"></table></div>
+      </div>
+      <div data-pane="gates" class="hidden">
+        <div class="panel" id="f2gates"></div>
+      </div>
+      <div data-pane="grave" class="hidden">
+        <div class="panel">
+          <p>Learned from June–August 2026 (~40 configs, 5 bps/side). Do not revisit without new data.</p>
+          <table>
+            <tr><th>Setup</th><th>n</th><th>Win</th><th>Avg R</th><th>PF</th><th>Verdict</th></tr>
+            <tr><td>Everyday ORB, liquid names</td><td>90</td><td>39%</td><td>−0.13</td><td>0.70</td><td><span class="pill no">DEAD</span></td></tr>
+            <tr><td>VWAP pullback continuation</td><td>—</td><td>—</td><td>—</td><td>0.56</td><td><span class="pill no">DEAD</span></td></tr>
+            <tr><td>VWAP-stretch mean reversion</td><td>95–458</td><td>23–46%</td><td>−0.18 to −0.44</td><td>0.49–0.70</td><td><span class="pill no">DEAD</span></td></tr>
+            <tr><td>In-play TOP-1 ORB only (v4)</td><td>5</td><td>—</td><td>+0.45</td><td>4.59</td><td><span class="pill mid">HYPOTHESIS</span></td></tr>
+          </table>
+        </div>
+      </div>
+      <div data-pane="reg" class="hidden">
+        <div class="grid g2">
+          <div class="kpi" id="kpiSPY"><div class="l">SPY</div><div class="v">—</div></div>
+          <div class="kpi" id="kpiQQQ"><div class="l">QQQ</div><div class="v">—</div></div>
+        </div>
+        <div class="panel"><p>Summer 2026 sample: QQQ −4.9% / 60d, 41% up-days — a chop-down tape. Chop regimes demand extra selectivity. A high RVOL without a catalyst is often a trap.</p></div>
+      </div>
+    </section>
+
+    <!-- F3 -->
+    <section class="view" data-view="f3">
+      <div class="view-head">
+        <div><h2>3RD FLOOR // INTELLIGENT DECISION</h2><p>ORB15-long, $750 doctrine, one trade per day. Convert a candidate into a ticket or veto it.</p></div>
+        <img class="emblem" src="assets/floor3.jpg" alt="" />
+      </div>
+      <div class="tabs" data-tabs="f3">
+        <button class="on" data-tab="ticket">Ticket</button>
+        <button data-tab="sizer">Sizer</button>
+        <button data-tab="laws">Laws</button>
+        <button data-tab="ladder">Ladder</button>
+      </div>
+      <div data-pane="ticket">
+        <div class="grid g2">
+          <div class="panel hot">
+            <div class="grid g2">
+              <div><label>SYMBOL</label><input id="tSym" /></div>
+              <div><label>EQUITY $</label><input id="tEq" type="number" step="1" /></div>
+              <div><label>OR HIGH</label><input id="tOrh" type="number" step="0.01" /></div>
+              <div><label>OR LOW</label><input id="tOrl" type="number" step="0.01" /></div>
+              <div><label>GAP %</label><input id="tGap" type="number" step="0.01" /></div>
+              <div><label>OR RVOL</label><input id="tRvol" type="number" step="0.01" /></div>
+            </div>
+            <div class="row" style="margin-top:12px">
+              <button class="btn orange" id="btnBuild">COMPUTE TICKET</button>
+              <button class="btn ghost" id="btnLoadTop">LOAD TOP NAME</button>
+              <button class="btn gold" id="btnExport">EXPORT JSON</button>
+            </div>
+            <div id="ticketOut" class="code" style="margin-top:12px">Awaiting compute…</div>
+          </div>
+          <div class="panel" id="f3gates"></div>
+        </div>
+      </div>
+      <div data-pane="sizer" class="hidden">
+        <div class="panel">
+          <p>Shares = min(floor(2% equity ÷ stop-distance), floor(equity ÷ entry)), whole shares. Skip if stop &gt; 3% of price. Target = entry + 1.5R. Long only — cash account, no locates.</p>
+          <div class="grid g4" id="sizerKpis"></div>
+        </div>
+      </div>
+      <div data-pane="laws" class="hidden">
+        <div class="panel">
+          <ul>
+            <li>Trigger: 5-min close above OR high AND above session VWAP. No touch entries.</li>
+            <li>Stop is OR low — structural, never moved down.</li>
+            <li>Time stop 15:55 ET. No overnight. TIF day on the bracket.</li>
+            <li>PDT: one round-trip per day by design. Fits cash (T+1) or margin (3/5).</li>
+            <li>Losing day → next day observation-only. Equity &lt; $500 → halt.</li>
+            <li>Weekly drawdown &gt; 6% → stand down until Monday.</li>
+          </ul>
+        </div>
+      </div>
+      <div data-pane="ladder" class="hidden">
+        <div class="panel">
+          <table>
+            <tr><th>Equity</th><th>Risk/trade</th><th>Note</th></tr>
+            <tr><td>$750</td><td>$15 (2%)</td><td>Validation — the goal is not-losing while proving edge</td></tr>
+            <tr><td>$1,500</td><td>$25</td><td>Only after 40+ live trades with PF ≥ 1.3</td></tr>
+            <tr><td>$5,000</td><td>$75</td><td></td></tr>
+            <tr><td>$25,000</td><td>—</td><td>PDT-free; menu can widen</td></tr>
+          </table>
+          <p>At +0.2R expectancy, $15 risk ≈ +$3/trade. Anyone promising five figures from $750 in weeks is describing gambling.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- F4 -->
+    <section class="view" data-view="f4">
+      <div class="view-head">
+        <div><h2>4TH FLOOR // PRECISE EXECUTION</h2><p>Human approval is the door. This HUD never submits a live order.</p></div>
+        <img class="emblem" src="assets/floor4.jpg" alt="" />
+      </div>
+      <div class="warn-banner">HARD GATE — scanner writes tickets. executor.py dry-runs. --approve submits PAPER. Live needs --live AND GLADIATOR_LIVE_CONFIRM=YES, run by you.</div>
+      <div class="tabs" data-tabs="f4">
+        <button class="on" data-tab="prev">Preview</button>
+        <button data-tab="life">Lifecycle</button>
+        <button data-tab="journal">Journal</button>
+        <button data-tab="safe">Safety</button>
+      </div>
+      <div data-pane="prev">
+        <div class="panel gold">
+          <div id="previewBox" class="code"></div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" id="btnDry">SIMULATE DRY RUN</button>
+            <button class="btn ghost" id="btnCopyCmd">COPY EXECUTOR COMMAND</button>
+          </div>
+          <div id="dryOut" class="ticket-card" style="margin-top:10px"></div>
+        </div>
+      </div>
+      <div data-pane="life" class="hidden">
+        <div class="panel">
+          <table>
+            <tr><th>Time</th><th>Action</th></tr>
+            <tr><td>Trigger confirmed</td><td>Submit bracket (limit + stop + 1.5R target, TIF day)</td></tr>
+            <tr><td>+15 min unfilled</td><td>Cancel — do not chase</td></tr>
+            <tr><td>Filled</td><td>Brackets manage. No intervention except EOD.</td></tr>
+            <tr><td>15:55 ET</td><td>If still open, market-close</td></tr>
+            <tr><td>16:10 ET</td><td>Journal the trade</td></tr>
+          </table>
+        </div>
+      </div>
+      <div data-pane="journal" class="hidden">
+        <div class="panel">
+          <div class="grid g3">
+            <div><label>DATE</label><input id="jDate" /></div>
+            <div><label>SYMBOL</label><input id="jSym" /></div>
+            <div><label>SCORE</label><input id="jScore" type="number" step="0.01" /></div>
+            <div><label>ENTRY</label><input id="jEntry" type="number" step="0.01" /></div>
+            <div><label>STOP</label><input id="jStop" type="number" step="0.01" /></div>
+            <div><label>TARGET</label><input id="jTarget" type="number" step="0.01" /></div>
+            <div><label>EXIT</label><input id="jExit" type="number" step="0.01" /></div>
+            <div><label>REASON</label>
+              <select id="jReason"><option>target</option><option>stop</option><option>eod</option><option>no_trade</option></select>
+            </div>
+            <div><label>FOLLOWED PLAN?</label>
+              <select id="jPlan"><option>yes</option><option>no</option></select>
+            </div>
+          </div>
+          <label>ONE SENTENCE</label>
+          <input id="jNote" placeholder="did we follow the plan?" />
+          <div class="row" style="margin-top:10px">
+            <button class="btn gold" id="btnJournal">APPEND JOURNAL</button>
+            <button class="btn ghost" id="btnCsv">EXPORT CSV</button>
+          </div>
+          <table id="jTable" style="margin-top:12px"></table>
+        </div>
+      </div>
+      <div data-pane="safe" class="hidden">
+        <div class="panel">
+          <ul>
+            <li>This HUD cannot place orders. The bot never decides to go live — only you do.</li>
+            <li>Paper proving ground: PA32F9675IY4. Live keys stay in env, never in files.</li>
+            <li>Un-journaled trade, moved stop, or second trade in a day = protocol breach → 1-week paper-only reset.</li>
+            <li>Kill switch: a file named STOP in the project root. Never delete it if present.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- LAB -->
+    <section class="view" data-view="lab">
+      <div class="view-head"><div><h2>ANALYSIS LAB</h2><p>Evidence from SCALPER-OPS research · June 2 – Aug 26 2026 sample</p></div></div>
+      <div class="tabs" data-tabs="lab">
+        <button class="on" data-tab="edge">Edge</button>
+        <button data-tab="sweep">Sweeps</button>
+        <button data-tab="eq">Equity Sim</button>
+        <button data-tab="n40">n=40 Gate</button>
+      </div>
+      <div data-pane="edge">
+        <div class="grid g4">
+          <div class="kpi bad"><div class="l">FIXED-UNIVERSE ORB PF</div><div class="v">0.70</div></div>
+          <div class="kpi bad"><div class="l">VWAP PB PF</div><div class="v">0.56</div></div>
+          <div class="kpi bad"><div class="l">VWAP REV PF</div><div class="v">0.49–0.70</div></div>
+          <div class="kpi ok"><div class="l">IN-PLAY TOP1 PF</div><div class="v">4.59*</div></div>
+        </div>
+        <div class="panel"><p>* n=5. Directional evidence, not proof. Validation requires ≥ 40 paper trades, PF ≥ 1.3, avg ≥ +0.15R, max DD &lt; 10%, zero protocol breaches in the final 20.</p></div>
+      </div>
+      <div data-pane="sweep" class="hidden">
+        <div class="panel"><canvas id="sweepChart" width="900" height="260" style="width:100%;height:260px"></canvas></div>
+        <div class="panel"><table id="sweepTable"></table></div>
+      </div>
+      <div data-pane="eq" class="hidden">
+        <div class="panel"><canvas id="eqChart" width="900" height="260" style="width:100%;height:260px"></canvas></div>
+      </div>
+      <div data-pane="n40" class="hidden">
+        <div class="panel">
+          <div class="kpi"><div class="l">PAPER TRADES LOGGED</div><div class="v" id="nCount">0 / 40</div></div>
+          <div class="bar" style="margin:12px 0"><i id="nBar" style="width:2%"></i></div>
+          <div id="nStats" class="ticket-card"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BOOK -->
+    <section class="view" data-view="book">
+      <div class="view-head"><div><h2>PLAYBOOK</h2><p>Doctrinal floors from TRADING VAULT · TRADING OPERATION</p></div></div>
+      <div class="grid g2">
+        <div class="panel"><h3>F1 Ingest</h3><p>Every day starts here. 09:00 sweep, 09:45 opening-range capture, 16:10 archive. Feature table (gap, rvol, score, OR levels) feeds Floor 2.</p><button class="btn ghost" data-go="f1">ENTER FLOOR</button></div>
+        <div class="panel"><h3>F2 Analyze</h3><p>score = |gap%| + OR RVOL. ≥ 2.0 to even be a candidate. Rank; only top 1 advances. Most days: nothing qualifies.</p><button class="btn ghost" data-go="f2">ENTER FLOOR</button></div>
+        <div class="panel hot"><h3>F3 Decide</h3><p>ORB15-long. Entry after close-confirmation. Stop = OR low. Target 1.5R. Size off 2% equity. Cooling-off after a loss.</p><button class="btn orange" data-go="f3">ENTER FLOOR</button></div>
+        <div class="panel gold"><h3>F4 Execute</h3><p>Dry run → --approve paper → live only with dual confirm. Journal every trade. Bracket or nothing.</p><button class="btn gold" data-go="f4">ENTER FLOOR</button></div>
+      </div>
+    </section>
+
+    <!-- CONSOLE -->
+    <section class="view" data-view="console">
+      <div class="view-head"><div><h2>OPS CONSOLE</h2><p>Commands, links, account switches — no order fire from here</p></div></div>
+      <div class="grid g2">
+        <div class="panel">
+          <h3>DAILY LOOP</h3>
+          <div class="code" id="cmdScan">python bot/scanner.py --equity 750</div>
+          <div class="row" style="margin:8px 0"><button class="btn ghost" data-copy="#cmdScan">COPY SCANNER</button></div>
+          <div class="code" id="cmdDry">python bot/executor.py --ticket bot/tickets/ticket_DATE.json</div>
+          <div class="row" style="margin:8px 0"><button class="btn ghost" data-copy="#cmdDry">COPY DRY RUN</button></div>
+          <div class="code">python bot/executor.py --ticket bot/tickets/ticket_DATE.json --approve
+# LIVE (owner only):
+# GLADIATOR_LIVE_CONFIRM=YES python bot/executor.py --ticket ... --approve --live</div>
+        </div>
+        <div class="panel link-grid">
+          <h3>LINKS</h3>
+          <a href="https://app.alpaca.markets" target="_blank" rel="noopener">Alpaca Dashboard</a>
+          <a href="https://app.alpaca.markets/paper/dashboard" target="_blank" rel="noopener">Alpaca Paper Desk</a>
+          <a href="https://www.tradingview.com" target="_blank" rel="noopener">TradingView</a>
+          <a href="https://claude.ai/code/artifact/0455b022-d27e-4e33-97b9-13f7e4414fe8" target="_blank" rel="noopener">Live Desk (approve/deny)</a>
+          <a href="https://github.com/mlatino-max" target="_blank" rel="noopener">GitHub // mlatino-max</a>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="grid g3">
+          <div><label>ACCOUNT MODE</label>
+            <select id="acctType"><option value="cash">CASH (T+1, no PDT)</option><option value="margin">MARGIN (3 day-trades / 5 days)</option></select>
+          </div>
+          <div><label>COOLING-OFF (loss yesterday)</label>
+            <select id="cool"><option value="0">OFF</option><option value="1">ON — observation only</option></select>
+          </div>
+          <div><label>WEEKLY DRAWDOWN %</label><input id="wdd" type="number" step="0.1" value="0" /></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side">
+    <h3>ACTIVE TICKET</h3>
+    <div class="ticket-card" id="sideTicket">No ticket staged.</div>
+    <h3 style="margin-top:18px">GATE TREE</h3>
+    <div id="sideGates"></div>
+    <h3 style="margin-top:18px">ACCOUNT</h3>
+    <div class="kpi"><div class="l">RISK CAP 2%</div><div class="v" id="sideRisk">$15.00</div></div>
+    <div class="kpi" style="margin-top:8px"><div class="l">POSITIONS</div><div class="v">MAX 1</div></div>
+  </aside>
+
+  <footer class="tick"><span id="ticker"></span></footer>
+</div>
+
+<div id="palette"><div class="box"><input id="palIn" placeholder="jump to floor, ticket, journal, lab…" /><div class="plist" id="palList"></div></div></div>
+<div id="modal"><div class="box" id="modalBox"></div></div>
+
+<script src="https://unpkg.com/three@0.160.1/build/three.min.js"></script>
+<script>
+/* ========== STATE ========== */
+const UNIVERSE_CORE = ["SOXL","TQQQ","INTC","SOFI","NIO","RIVN","LCID","AAL","MARA","F","PLTR","AMD","MU","AAPL","TSLA"];
+const QUOTES = [
+  {symbol:"SOXL",price:116.17,prev:115.81,gap:0.31,rvol:0.9,orh:117.4,orl:114.8},
+  {symbol:"TQQQ",price:70.32,prev:69.89,gap:0.62,rvol:1.1,orh:71.1,orl:69.4},
+  {symbol:"INTC",price:87.42,prev:87.58,gap:-0.18,rvol:0.8,orh:88.2,orl:86.9},
+  {symbol:"SOFI",price:18.84,prev:19.02,gap:-0.93,rvol:1.4,orh:19.2,orl:18.55},
+  {symbol:"NIO",price:4.42,prev:4.46,gap:-0.98,rvol:1.6,orh:4.55,orl:4.28},
+  {symbol:"RIVN",price:16.22,prev:16.74,gap:-3.13,rvol:1.8,orh:16.9,orl:15.95},
+  {symbol:"LCID",price:4.96,prev:5.27,gap:-5.84,rvol:2.1,orh:5.22,orl:4.81},
+  {symbol:"AAL",price:13.99,prev:13.97,gap:0.15,rvol:1.0,orh:14.15,orl:13.72},
+  {symbol:"MARA",price:11.23,prev:11.8,gap:-4.83,rvol:3.07,orh:11.85,orl:11.05},
+  {symbol:"F",price:13.87,prev:13.95,gap:-0.57,rvol:0.9,orh:14.05,orl:13.7},
+  {symbol:"PLTR",price:176.92,prev:172.25,gap:2.71,rvol:1.5,orh:178.4,orl:172.0},
+  {symbol:"AMD",price:481.11,prev:479.63,gap:0.31,rvol:1.2,orh:486,orl:476},
+  {symbol:"MU",price:939.46,prev:930.00,gap:1.02,rvol:1.3,orh:948,orl:928},
+  {symbol:"AAPL",price:312.98,prev:309.35,gap:1.17,rvol:0.7,orh:315,orl:308},
+  {symbol:"TSLA",price:344.98,prev:350.70,gap:-1.63,rvol:1.1,orh:352,orl:342}
+];
+const INDEX = {SPY:{price:765.71,gap:0.10},QQQ:{price:710.92,gap:0.21}};
+const LAST_SCAN = {date:"2026-08-26",verdict:"NO_TRADE",top:"MARA",score:3.07,reason:"stop too wide (3.0% of price; cap 3% with slippage margin)"};
+const SWEEPS = [
+  {label:"ORB no-filter fix15", n:90, win:0.39, avg:-0.132, pf:0.70},
+  {label:"ORB PDH fix15", n:23, win:0.39, avg:-0.151, pf:0.56},
+  {label:"ORB gap fix15", n:37, win:0.32, avg:-0.172, pf:0.56},
+  {label:"ORB trail", n:90, win:0.32, avg:-0.153, pf:0.51},
+  {label:"VWAP K1.5 s1.5", n:458, win:0.46, avg:-0.177, pf:0.68},
+  {label:"VWAP K2.0 s1.5", n:411, win:0.42, avg:-0.182, pf:0.70},
+  {label:"VWAP K2.5 s1.0", n:360, win:0.23, avg:-0.439, pf:0.49},
+  {label:"IN-PLAY TOP1 ORB", n:5, win:null, avg:0.45, pf:4.59}
+];
+const STORE="GLADIATOR_SCALP_HUD_v1";
+const S = loadState();
+
+function loadState(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(STORE)||"{}");
+    return {
+      equity: raw.equity ?? 750,
+      cool: raw.cool ?? false,
+      wdd: raw.wdd ?? 0,
+      acct: raw.acct ?? "cash",
+      journal: raw.journal ?? [],
+      ticket: raw.ticket ?? null,
+      rows: (raw.rows && raw.rows.length) ? raw.rows : structuredClone(QUOTES),
+      inBandOnly: raw.inBandOnly ?? false
+    };
+  }catch(e){ return {equity:750,cool:false,wdd:0,acct:"cash",journal:[],ticket:null,rows:structuredClone(QUOTES),inBandOnly:false}; }
+}
+function save(){ localStorage.setItem(STORE, JSON.stringify(S)); }
+
+function score(r){ return Math.abs(+r.gap||0) + (+r.rvol||0); }
+function inBand(r){ return r.price>=3 && r.price<=100; }
+function ranked(){ return [...S.rows].map(r=>({...r, score:+score(r).toFixed(2)})).sort((a,b)=>b.score-a.score); }
+
+function buildTicket(row, equity){
+  const entry = +(row.orh * 1.0005).toFixed(2);
+  const stop = +(+row.orl).toFixed(2);
+  const riskPs = +(entry - stop).toFixed(4);
+  const reasons=[];
+  if(!inBand(row)) reasons.push("price outside $3–$100 band");
+  if(score(row)<2) reasons.push("score < 2.0 — not in play");
+  if(riskPs<=0) reasons.push("invalid OR (stop >= entry)");
+  if(riskPs/entry > 0.03) reasons.push(`stop too wide (${(riskPs/entry*100).toFixed(1)}% of price)`);
+  if(S.cool) reasons.push("cooling-off day after a loss");
+  if(equity<500) reasons.push("equity < $500 — halt");
+  if(S.wdd>6) reasons.push("weekly drawdown > 6% — stand down");
+  const maxRisk = equity * 0.02;
+  let shares = 0;
+  if(riskPs>0){
+    const byRisk = Math.floor(maxRisk / riskPs);
+    const byCash = Math.floor(equity / entry);
+    shares = Math.min(byRisk, byCash);
+  }
+  if(shares<1 && !reasons.length) reasons.push("cannot size >= 1 share within risk budget");
+  const target = +(entry + 1.5*riskPs).toFixed(2);
+  const ok = reasons.length===0 && shares>=1;
+  return {
+    ok, reasons, symbol:row.symbol, setup:"ORB15-long",
+    score:+score(row).toFixed(2), gap_pct:+(+row.gap).toFixed(2), rvol:+(+row.rvol).toFixed(2),
+    entry_est:entry, stop, target, shares,
+    position_value:+(shares*entry).toFixed(2),
+    dollars_at_risk:+(shares*Math.max(riskPs,0)).toFixed(2),
+    entry_trigger:`5-min close above ${(+row.orh).toFixed(2)} AND above VWAP, then buy`,
+    time_stop:"15:55 ET — flat by close, no exceptions",
+    order_type:"bracket: limit entry, stop-loss + limit take-profit legs",
+    or_high:+row.orh, or_low:+row.orl, price:row.price
+  };
+}
+
+/* ========== NAV ========== */
+function goto(view, tab){
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on", v.dataset.view===view));
+  document.querySelectorAll(".nav-btn").forEach(b=>b.classList.toggle("on", b.dataset.go===view));
+  location.hash = tab ? view+"/"+tab : view;
+  if(tab){
+    const root = document.querySelector(`.view[data-view="${view}"]`);
+    if(root){
+      root.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on", b.dataset.tab===tab));
+      root.querySelectorAll("[data-pane]").forEach(p=>p.classList.toggle("hidden", p.getAttribute("data-pane")!==tab));
+    }
+  }
+  if(view==="f2") renderRank();
+  if(view==="f3"){ fillTicketForm(); computeTicket(); }
+  if(view==="f4") renderPreview();
+  if(view==="lab") { drawSweep(); drawEq(); renderN40(); }
+}
+document.querySelectorAll("[data-go]").forEach(el=>el.addEventListener("click",()=>goto(el.dataset.go)));
+document.querySelectorAll(".tabs").forEach(t=>{
+  t.addEventListener("click", e=>{
+    if(e.target.dataset.tab){
+      const view = t.closest(".view").dataset.view;
+      goto(view, e.target.dataset.tab);
+    }
+  });
+});
+window.addEventListener("hashchange", ()=>{
+  const [v,tab]=(location.hash.replace("#","")||"deck").split("/");
+  if(document.querySelector(`.view[data-view="${v}"]`)) goto(v, tab);
+});
+
+/* ========== CLOCK ========== */
+function nyNow(){
+  return new Date(new Date().toLocaleString("en-US",{timeZone:"America/New_York"}));
+}
+function fmt(d){ return d.toTimeString().slice(0,8); }
+function minutes(h,m){ return h*60+m; }
+function phaseOf(d){
+  const t = minutes(d.getHours(), d.getMinutes());
+  const dow = d.getDay();
+  if(dow===0||dow===6) return {name:"WEEKEND", next:"Mon 09:00 ET", mins:null};
+  if(t<540) return {name:"PRE-SWEEP WAIT", next:"09:00 pre-market", target:540};
+  if(t<585) return {name:"PRE-MARKET SWEEP", next:"09:45 OR capture", target:585};
+  if(t<960) return {name:"SESSION LIVE", next:"15:55 time stop", target:960};
+  if(t<970) return {name:"FLAT / TIME STOP", next:"16:10 journal", target:970};
+  return {name:"CLOSED / ARCHIVE", next:"Tue 09:00" , target:null};
+}
+function tickClock(){
+  const d = nyNow();
+  document.getElementById("clock").textContent = fmt(d) + " ET";
+  const ph = phaseOf(d);
+  document.getElementById("phase").textContent = ph.name;
+  document.getElementById("phaseChip").className = "chip " + (ph.name.includes("LIVE")?"ok": ph.name.includes("STOP")?"warn":"");
+  let sub = ph.next;
+  if(ph.target!=null){
+    const now = minutes(d.getHours(),d.getMinutes());
+    const left = ph.target-now;
+    const hh = String(Math.floor(left/60)).padStart(2,"0");
+    const mm = String(left%60).padStart(2,"0");
+    sub = `${ph.next} · T-${hh}:${mm}`;
+    document.getElementById("nextT").textContent = `${hh}:${mm}`;
+    document.getElementById("nextLbl").textContent = ph.next;
+  } else {
+    document.getElementById("nextT").textContent = "—";
+    document.getElementById("nextLbl").textContent = ph.next;
+  }
+  document.getElementById("clockSub").textContent = "AMERICA/NEW_YORK · " + sub;
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ========== TABLES ========== */
+function renderUniverse(){
+  const q = (document.getElementById("uniFilter").value||"").toUpperCase();
+  let rows = ranked();
+  if(S.inBandOnly) rows = rows.filter(inBand);
+  if(q) rows = rows.filter(r=>r.symbol.includes(q));
+  const html = `<tr><th>SYM</th><th>LAST</th><th>GAP%</th><th>RVOL</th><th>SCORE</th><th>OR H</th><th>OR L</th><th>BAND</th></tr>` +
+    rows.map(r=>{
+      const sc=score(r);
+      return `<tr data-sym="${r.symbol}">
+        <td>${r.symbol}</td>
+        <td>${r.price.toFixed(2)}</td>
+        <td contenteditable="true" data-k="gap">${(+r.gap).toFixed(2)}</td>
+        <td contenteditable="true" data-k="rvol">${(+r.rvol).toFixed(2)}</td>
+        <td>${sc.toFixed(2)}</td>
+        <td contenteditable="true" data-k="orh">${(+r.orh).toFixed(2)}</td>
+        <td contenteditable="true" data-k="orl">${(+r.orl).toFixed(2)}</td>
+        <td>${inBand(r)?'<span class="pill go">IN</span>':'<span class="pill no">OUT</span>'}</td>
+      </tr>`;
+    }).join("");
+  document.getElementById("uniTable").innerHTML = html;
+}
+document.getElementById("uniTable").addEventListener("click", e=>{
+  const tr = e.target.closest("tr[data-sym]");
+  if(!tr) return;
+  if(e.target.dataset.k) return;
+  promote(tr.dataset.sym);
+});
+document.getElementById("uniTable").addEventListener("blur", e=>{
+  const k=e.target.dataset.k; if(!k) return;
+  const tr=e.target.closest("tr[data-sym]");
+  const row=S.rows.find(r=>r.symbol===tr.dataset.sym);
+  row[k]=parseFloat(e.target.textContent)||0;
+  save(); renderUniverse(); renderRank(); renderSide();
+}, true);
+document.getElementById("uniFilter").addEventListener("input", renderUniverse);
+document.getElementById("btnBand").onclick=()=>{S.inBandOnly=!S.inBandOnly;save();renderUniverse();};
+document.getElementById("btnResetScan").onclick=()=>{S.rows=structuredClone(QUOTES);save();renderUniverse();renderRank();};
+
+function renderRank(){
+  const rows = ranked();
+  const top = rows[0];
+  const width = top? (top.orh-top.orl)/top.price*100 : 99;
+  const play = top && score(top)>=2 && inBand(top) && width<=3;
+  const veto = top && score(top)>=2 && (!inBand(top) || width>3);
+  document.getElementById("kpiTop").innerHTML = `<div class="l">TOP NAME</div><div class="v">${top?top.symbol:"—"}</div>`;
+  document.getElementById("kpiPlay").className = "kpi "+(play?"ok":"bad");
+  document.getElementById("kpiPlay").innerHTML = `<div class="l">IN PLAY?</div><div class="v">${play?"YES": veto?"VETO":"NO"}</div>`;
+  document.getElementById("rankTable").innerHTML =
+    `<tr><th>#</th><th>SYM</th><th>SCORE</th><th>GAP</th><th>RVOL</th><th>WIDTH%</th><th>ADVANCE</th></tr>`+
+    rows.map((r,i)=>{
+      const width = (r.orh-r.orl)/r.price*100;
+      const pass = score(r)>=2 && inBand(r) && width<=3;
+      return `<tr data-sym="${r.symbol}"><td>${i+1}</td><td>${r.symbol}</td><td>${score(r).toFixed(2)}</td>
+        <td>${(+r.gap).toFixed(2)}</td><td>${(+r.rvol).toFixed(2)}</td><td>${width.toFixed(2)}</td>
+        <td>${i===0 && pass?'<span class="pill go">TOP-1</span>': i===0?'<span class="pill no">VETO</span>':'<span class="pill mid">WAIT</span>'}</td></tr>`;
+    }).join("");
+  const t = buildTicket(top, S.equity);
+  document.getElementById("f2gates").innerHTML = gateHtml(t, top);
+}
+document.getElementById("rankTable")?.addEventListener("click", e=>{
+  const tr=e.target.closest("tr[data-sym]"); if(tr) promote(tr.dataset.sym);
+});
+
+function gateHtml(t, row){
+  const width = row? (row.orh-row.orl)/row.price*100 : 0;
+  const items = [
+    ["Score ≥ 2.0", t.score>=2],
+    ["Price $3–$100", row?inBand(row):false],
+    ["OR width ≤ 3%", width<=3],
+    ["Top-1 ranked", true],
+    ["Cooling-off clear", !S.cool],
+    ["Equity ≥ $500", S.equity>=500],
+    ["Weekly DD ≤ 6%", S.wdd<=6],
+    ["Can size ≥ 1 share", t.shares>=1],
+    ["Stop fits 2% risk", t.ok]
+  ];
+  return items.map(([k,ok])=>`<div class="gate"><span>${k}</span><span class="st" style="color:${ok?'var(--ok)':'var(--bad)'}">${ok?"PASS":"FAIL"}</span></div>`).join("");
+}
+
+function promote(sym){
+  const row = S.rows.find(r=>r.symbol===sym);
+  if(!row) return;
+  document.getElementById("tSym").value = row.symbol;
+  document.getElementById("tOrh").value = row.orh;
+  document.getElementById("tOrl").value = row.orl;
+  document.getElementById("tGap").value = row.gap;
+  document.getElementById("tRvol").value = row.rvol;
+  document.getElementById("tEq").value = S.equity;
+  computeTicket();
+  goto("f3","ticket");
+}
+
+function fillTicketForm(){
+  document.getElementById("tEq").value = S.equity;
+  if(!document.getElementById("tSym").value){
+    const top = ranked()[0];
+    if(top){ document.getElementById("tSym").value=top.symbol;
+      document.getElementById("tOrh").value=top.orh; document.getElementById("tOrl").value=top.orl;
+      document.getElementById("tGap").value=top.gap; document.getElementById("tRvol").value=top.rvol; }
+  }
+}
+function currentRowFromForm(){
+  return {
+    symbol: document.getElementById("tSym").value.toUpperCase().trim(),
+    price: (S.rows.find(r=>r.symbol===document.getElementById("tSym").value.toUpperCase())||{price:0}).price,
+    orh:+document.getElementById("tOrh").value, orl:+document.getElementById("tOrl").value,
+    gap:+document.getElementById("tGap").value, rvol:+document.getElementById("tRvol").value
+  };
+}
+function computeTicket(){
+  S.equity = +document.getElementById("tEq").value || S.equity;
+  const row = currentRowFromForm();
+  const t = buildTicket(row, S.equity);
+  S.ticket = t; save();
+  document.getElementById("ticketOut").textContent = JSON.stringify(t, null, 2);
+  document.getElementById("f3gates").innerHTML = "<h3 style='margin-top:0;font-family:var(--disp);letter-spacing:.14em;font-size:12px'>GATES</h3>"+gateHtml(t,row)+
+    (t.ok?`<div class="ok-banner" style="margin-top:10px">TICKET ARMED — still requires human --approve on Floor 4</div>`:
+          `<div class="warn-banner" style="margin-top:10px">NO TRADE · ${t.reasons.join(" · ")}</div>`);
+  document.getElementById("sizerKpis").innerHTML = `
+    <div class="kpi"><div class="l">ENTRY</div><div class="v">${t.entry_est}</div></div>
+    <div class="kpi bad"><div class="l">STOP</div><div class="v">${t.stop}</div></div>
+    <div class="kpi ok"><div class="l">TARGET 1.5R</div><div class="v">${t.target}</div></div>
+    <div class="kpi gold"><div class="l">SHARES</div><div class="v">${t.shares}</div></div>`;
+  renderSide();
+  renderPreview();
+}
+document.getElementById("btnBuild").onclick=computeTicket;
+document.getElementById("btnLoadTop").onclick=()=>{ const top=ranked().filter(inBand)[0]||ranked()[0]; promote(top.symbol); };
+document.getElementById("btnExport").onclick=()=>{
+  if(!S.ticket) computeTicket();
+  const blob = new Blob([JSON.stringify(S.ticket,null,2)],{type:"application/json"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`ticket_${new Date().toISOString().slice(0,10)}.json`; a.click();
+};
+
+function renderPreview(){
+  const t=S.ticket;
+  const el=document.getElementById("previewBox");
+  if(!t){ el.textContent="No ticket. Build one on Floor 3."; return; }
+  el.textContent = t.ok
+    ? `=== ORDER PREVIEW ===\n  ${t.symbol}  BUY ${t.shares} sh  limit ${t.entry_est}\n  bracket: stop ${t.stop}  |  take-profit ${t.target}  |  TIF day\n  $ at risk: ${t.dollars_at_risk}  position: ${t.position_value}\n\nDRY RUN — HUD submits nothing.`
+    : `VERDICT: NO TRADE\n${t.reasons.join("\n")}`;
+}
+document.getElementById("btnDry").onclick=()=>{
+  const t=S.ticket; if(!t){computeTicket();}
+  document.getElementById("dryOut").innerHTML = S.ticket.ok
+    ? `<span style="color:var(--yellow)">DRY RUN COMPLETE</span> — would submit PAPER bracket on ${S.ticket.symbol}. Re-run executor.py with --approve to actually send. HUD will not.`
+    : `<span style="color:var(--bad)">BLOCKED</span> — ${S.ticket.reasons.join("; ")}`;
+};
+document.getElementById("btnCopyCmd").onclick=()=>{
+  const d=new Date().toISOString().slice(0,10);
+  navigator.clipboard.writeText(`python bot/executor.py --ticket bot/tickets/ticket_${d}.json`);
+};
+
+/* journal */
+document.getElementById("jDate").value = new Date().toISOString().slice(0,10);
+function renderJournal(){
+  const rows=S.journal;
+  document.getElementById("jTable").innerHTML = `<tr><th>DATE</th><th>SYM</th><th>R</th><th>REASON</th><th>PLAN</th></tr>`+
+    (rows.length? rows.map(j=>`<tr><td>${j.date}</td><td>${j.symbol}</td><td>${j.r}</td><td>${j.reason}</td><td>${j.plan}</td></tr>`).join("") : `<tr><td colspan="5">No fills yet — empty journal is honest.</td></tr>`);
+  renderN40(); drawEq();
+}
+document.getElementById("btnJournal").onclick=()=>{
+  const entry=+document.getElementById("jEntry").value, stop=+document.getElementById("jStop").value, exit=+document.getElementById("jExit").value;
+  const risk=entry-stop; const r = risk? +((exit-entry)/risk).toFixed(3) : 0;
+  S.journal.unshift({
+    date:document.getElementById("jDate").value,
+    symbol:document.getElementById("jSym").value.toUpperCase(),
+    score:document.getElementById("jScore").value,
+    entry, stop, target:+document.getElementById("jTarget").value, exit, r,
+    reason:document.getElementById("jReason").value,
+    plan:document.getElementById("jPlan").value,
+    note:document.getElementById("jNote").value
+  });
+  save(); renderJournal();
+};
+document.getElementById("btnCsv").onclick=()=>{
+  const head="date,symbol,score,shares,entry,stop,target,exit,r_result,reason,followed_plan\n";
+  const body=S.journal.map(j=>[j.date,j.symbol,j.score,"",j.entry,j.stop,j.target,j.exit,j.r,j.reason,j.plan].join(",")).join("\n");
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([head+body],{type:"text/csv"}));
+  a.download="journal.csv"; a.click();
+};
+
+function renderN40(){
+  const n=S.journal.filter(j=>j.reason!=="no_trade").length;
+  document.getElementById("nCount").textContent = n+" / 40";
+  document.getElementById("kpiN").textContent = n+"/40";
+  document.getElementById("nBar").style.width = Math.max(2, Math.min(100, n/40*100))+"%";
+  const rs=S.journal.filter(j=>typeof j.r==="number" && j.reason!=="no_trade").map(j=>j.r);
+  const wins=rs.filter(r=>r>0), losses=rs.filter(r=>r<=0);
+  const pf = losses.length && Math.abs(losses.reduce((a,b)=>a+b,0)) ? (wins.reduce((a,b)=>a+b,0)/Math.abs(losses.reduce((a,b)=>a+b,0))) : (wins.length?Infinity:0);
+  const avg = rs.length? rs.reduce((a,b)=>a+b,0)/rs.length : 0;
+  const breaches = S.journal.filter(j=>j.plan==="no").length;
+  document.getElementById("nStats").innerHTML =
+    `PF ${isFinite(pf)?pf.toFixed(2):"∞"} · avg ${avg.toFixed(3)}R · breaches ${breaches}<br>`+
+    `GO LIVE GATE: PF≥1.3 and avg≥+0.15R and n≥40 and maxDD&lt;10% and 0 breaches in last 20.`;
+}
+function drawSweep(){
+  const c=document.getElementById("sweepChart"); if(!c) return;
+  const ctx=c.getContext("2d"); const w=c.width,h=c.height;
+  ctx.fillStyle="#040a12"; ctx.fillRect(0,0,w,h);
+  const max=5;
+  SWEEPS.forEach((s,i)=>{
+    const x=20+i*((w-40)/SWEEPS.length);
+    const bh=Math.min(h-40, Math.abs(s.pf)/max*(h-50));
+    ctx.fillStyle = s.pf>=1.3 ? "#39ff9a" : s.pf>=1 ? "#ffe14a" : "#ff6a00";
+    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=12;
+    ctx.fillRect(x, h-30-bh, 40, bh);
+    ctx.shadowBlur=0; ctx.fillStyle="#7ea0b8"; ctx.font="10px Share Tech Mono";
+    ctx.fillText(s.pf.toFixed(2), x, h-14);
+  });
+  document.getElementById("sweepTable").innerHTML = `<tr><th>CONFIG</th><th>n</th><th>WIN</th><th>AVG R</th><th>PF</th></tr>`+
+    SWEEPS.map(s=>`<tr><td>${s.label}</td><td>${s.n}</td><td>${s.win==null?"—":(s.win*100).toFixed(0)+"%"}</td><td>${s.avg}</td><td>${s.pf}</td></tr>`).join("");
+}
+function drawEq(){
+  const c=document.getElementById("eqChart"); if(!c) return;
+  const ctx=c.getContext("2d"); const w=c.width,h=c.height;
+  ctx.fillStyle="#040a12"; ctx.fillRect(0,0,w,h);
+  let eq=S.equity, path=[eq];
+  [...S.journal].reverse().forEach(j=>{ if(typeof j.r==="number"){ eq += (S.equity*0.02)*j.r; path.push(eq);} });
+  if(path.length===1){ for(let i=1;i<12;i++) path.push(S.equity); }
+  const min=Math.min(...path), max=Math.max(...path), span=Math.max(1,max-min);
+  ctx.beginPath(); ctx.strokeStyle="#00e8ff"; ctx.shadowColor="#00e8ff"; ctx.shadowBlur=10; ctx.lineWidth=2;
+  path.forEach((v,i)=>{
+    const x=20+i*((w-40)/Math.max(1,path.length-1));
+    const y=h-30-((v-min)/span)*(h-50);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  });
+  ctx.stroke();
+}
+
+function renderSide(){
+  document.getElementById("kpiEq").textContent = "$"+S.equity.toFixed(0);
+  document.getElementById("kpiR").textContent = "$"+(S.equity*0.02).toFixed(2);
+  document.getElementById("sideRisk").textContent = "$"+(S.equity*0.02).toFixed(2);
+  const t=S.ticket;
+  document.getElementById("sideTicket").innerHTML = t
+    ? `<b>${t.symbol}</b> ${t.setup}<br>score ${t.score}<br>entry ${t.entry_est} · stop ${t.stop} · tgt ${t.target}<br>sh ${t.shares} · risk $${t.dollars_at_risk}<br>${t.ok?'<span class="pill go">ARMED</span>':'<span class="pill no">NO TRADE</span>'}`
+    : "No ticket staged.";
+  const row = t? {price:t.price,orh:t.or_high,orl:t.or_low,gap:t.gap_pct,rvol:t.rvol,symbol:t.symbol}: ranked()[0];
+  document.getElementById("sideGates").innerHTML = gateHtml(t||buildTicket(row,S.equity), row);
+  const play = ranked().filter(r=>score(r)>=2 && inBand(r))[0];
+  document.getElementById("verdictChip").textContent = LAST_SCAN.date+" · "+LAST_SCAN.verdict+" · "+LAST_SCAN.top+" "+LAST_SCAN.score;
+  document.getElementById("deskStatus").innerHTML =
+    `<b>${LAST_SCAN.date}</b> scanner verdict: <b style="color:var(--orange)">${LAST_SCAN.verdict}</b><br>
+     Top: ${LAST_SCAN.top} score ${LAST_SCAN.score}<br>${LAST_SCAN.reason}<br><br>
+     Live quotes loaded after the close — OR/RVOL cells are operator-editable so you can restage a 09:45 capture.`;
+  document.getElementById("kpiSPY").innerHTML = `<div class="l">SPY ${INDEX.SPY.price}</div><div class="v">${INDEX.SPY.gap>=0?"+":""}${INDEX.SPY.gap}%</div>`;
+  document.getElementById("kpiQQQ").innerHTML = `<div class="l">QQQ ${INDEX.QQQ.price}</div><div class="v">${INDEX.QQQ.gap>=0?"+":""}${INDEX.QQQ.gap}%</div>`;
+}
+
+document.getElementById("acctType").value=S.acct;
+document.getElementById("cool").value=S.cool?"1":"0";
+document.getElementById("wdd").value=S.wdd;
+document.getElementById("acctType").onchange=e=>{S.acct=e.target.value;save();renderSide();};
+document.getElementById("cool").onchange=e=>{S.cool=e.target.value==="1";save();renderSide();};
+document.getElementById("wdd").oninput=e=>{S.wdd=+e.target.value;save();renderSide();};
+
+document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{
+  navigator.clipboard.writeText(document.querySelector(b.dataset.copy).textContent);
+});
+
+/* ticker */
+document.getElementById("ticker").textContent =
+  "◆ GLADIATOR SCALP ONLINE ◆ SELECTIVITY IS THE EDGE ◆ SCORE = |GAP%| + OR RVOL ◆ MIN 2.0 ◆ TOP-1 ONLY ◆ ORB15 LONG ◆ STOP = OR LOW ◆ TARGET 1.5R ◆ FLAT 15:55 ET ◆ ONE TRADE / DAY ◆ HUMAN APPROVAL REQUIRED ◆ PAPER PA32F9675IY4 ◆ LIVE NEEDS DUAL CONFIRM ◆ n=40 BEFORE SCALE ◆ NEVER CHASE ◆ "+
+  UNIVERSE_CORE.join(" · ")+" ◆";
+
+/* palette */
+const PAL = [
+  ["Command Deck","deck"],["Floor 1 Ingest","f1"],["Floor 2 Analyze","f2"],["Floor 3 Ticket","f3"],
+  ["Floor 4 Execute","f4"],["Analysis Lab","lab"],["Playbook","book"],["Ops Console","console"],
+  ["Journal","f4","journal"],["Sizer","f3","sizer"],["Graveyard","f2","grave"]
+];
+function openPal(){ document.getElementById("palette").classList.add("on"); document.getElementById("palIn").value=""; drawPal(""); document.getElementById("palIn").focus(); }
+function drawPal(q){
+  const items=PAL.filter(p=>p[0].toLowerCase().includes(q.toLowerCase()));
+  document.getElementById("palList").innerHTML = items.map(p=>`<button data-v="${p[1]}" data-t="${p[2]||""}">${p[0]}</button>`).join("");
+}
+document.getElementById("btnPalette").onclick=openPal;
+document.getElementById("palIn").oninput=e=>drawPal(e.target.value);
+document.getElementById("palList").onclick=e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  document.getElementById("palette").classList.remove("on"); goto(b.dataset.v, b.dataset.t||undefined);
+};
+document.addEventListener("keydown", e=>{
+  if((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==="k"){ e.preventDefault(); openPal(); }
+  if(e.key==="Escape"){ document.getElementById("palette").classList.remove("on"); document.getElementById("modal").classList.remove("on"); }
+  if(e.target.matches("input,textarea,[contenteditable]")) return;
+  const map={0:"deck",1:"f1",2:"f2",3:"f3",4:"f4",a:"lab",p:"book",j:"f4"};
+  if(map[e.key.toLowerCase()]) goto(map[e.key.toLowerCase()], e.key.toLowerCase()==="j"?"journal":undefined);
+});
+
+/* ========== THREE NEURAL CORE ========== */
+(function(){
+  const canvas=document.getElementById("tower");
+  const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(36, 2, 0.1, 80);
+  const loader=new THREE.TextureLoader();
+  const tex=loader.load("assets/neural-core-4lobe.jpg");
+  const coreTex=loader.load("assets/neural-core.jpg");
+  const brain=new THREE.Group();
+  scene.add(brain);
+
+  [2.55, 2.9, 3.25].forEach((r,i)=>{
+    const ring=new THREE.Mesh(
+      new THREE.TorusGeometry(r, 0.018, 8, 96),
+      new THREE.MeshBasicMaterial({color:0x00e8ff, transparent:true, opacity:0.5-i*0.12})
+    );
+    ring.rotation.x=Math.PI/2;
+    brain.add(ring);
+  });
+
+  const lobes=[
+    {view:"f1", color:0x00e8ff, p:[0.2,-1.05,0.15], s:[0.85,0.7,0.75]},
+    {view:"f2", color:0x3d8bff, p:[-0.9,0.4,-0.2], s:[1.35,1.15,1.05]},
+    {view:"f3", color:0xff6a00, p:[0.95,-0.05,0.35], s:[1.25,0.95,1.05]},
+    {view:"f4", color:0xffe14a, p:[0.5,0.95,0.45], s:[1.1,0.95,0.95]}
+  ];
+  const meshes=[];
+  lobes.forEach(L=>{
+    const mat=new THREE.MeshStandardMaterial({
+      color:L.color, emissive:L.color, emissiveIntensity:0.7,
+      metalness:0.15, roughness:0.28, transparent:true, opacity:0.55
+    });
+    const m=new THREE.Mesh(new THREE.SphereGeometry(1, 36, 28), mat);
+    m.position.set(...L.p); m.scale.set(...L.s); m.userData.view=L.view;
+    brain.add(m); meshes.push(m);
+  });
+
+  const disc=new THREE.Mesh(
+    new THREE.CircleGeometry(2.05, 64),
+    new THREE.MeshBasicMaterial({map:tex, transparent:true, side:THREE.DoubleSide, depthWrite:false})
+  );
+  disc.position.z=0.15;
+  brain.add(disc);
+  const discB=disc.clone();
+  discB.material=new THREE.MeshBasicMaterial({map:coreTex, transparent:true, opacity:0.55, side:THREE.DoubleSide, depthWrite:false});
+  discB.rotation.y=Math.PI; discB.position.z=-0.15;
+  brain.add(discB);
+
+  scene.add(new THREE.AmbientLight(0x1a2a44, 0.9));
+  const l1=new THREE.PointLight(0x00e8ff, 36, 22); l1.position.set(-4,2,5); scene.add(l1);
+  const l2=new THREE.PointLight(0xff6a00, 28, 18); l2.position.set(5,1,-3); scene.add(l2);
+  const l3=new THREE.PointLight(0xffe14a, 22, 16); l3.position.set(1,5,2); scene.add(l3);
+  const stars=new THREE.BufferGeometry();
+  const pos=[]; for(let i=0;i<600;i++) pos.push((Math.random()-0.5)*40,(Math.random()-0.5)*24,(Math.random()-0.5)*40);
+  stars.setAttribute("position", new THREE.Float32BufferAttribute(pos,3));
+  scene.add(new THREE.Points(stars, new THREE.PointsMaterial({color:0x88e0ff, size:0.035})));
+
+  const ray=new THREE.Raycaster(); const mouse=new THREE.Vector2();
+  let drag=false, lastX=0, lastY=0, auto=true, theta=0.35, phi=1.05, dist=8.6, moved=0;
+  function layout(){
+    const w=canvas.clientWidth, h=canvas.clientHeight;
+    renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(layout).observe(canvas); layout();
+  canvas.addEventListener("pointerdown", e=>{ drag=true; auto=false; moved=0; lastX=e.clientX; lastY=e.clientY; canvas.setPointerCapture(e.pointerId); });
+  canvas.addEventListener("pointerup", ()=>{ drag=false; });
+  canvas.addEventListener("pointermove", e=>{
+    if(!drag) return;
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    moved+=Math.abs(dx)+Math.abs(dy);
+    theta-=dx*0.005; phi-=dy*0.005;
+    phi=Math.max(0.45, Math.min(1.4, phi)); lastX=e.clientX; lastY=e.clientY;
+  });
+  canvas.addEventListener("wheel", e=>{ dist=Math.max(6, Math.min(14, dist+e.deltaY*0.01)); e.preventDefault(); }, {passive:false});
+  canvas.addEventListener("click", e=>{
+    if(moved>8) return;
+    const r=canvas.getBoundingClientRect();
+    mouse.x=((e.clientX-r.left)/r.width)*2-1; mouse.y=-((e.clientY-r.top)/r.height)*2+1;
+    ray.setFromCamera(mouse, camera);
+    const hit=ray.intersectObjects(meshes)[0];
+    if(hit) goto(hit.object.userData.view);
+  });
+  function frame(){
+    if(auto) theta+=0.004;
+    camera.position.set(Math.cos(theta)*Math.sin(phi)*dist, Math.cos(phi)*dist*0.55, Math.sin(theta)*Math.sin(phi)*dist);
+    camera.lookAt(0,0,0);
+    brain.rotation.y+= auto?0.002:0;
+    renderer.render(scene,camera);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
+/* boot */
+(function(){
+  const boot=document.getElementById("boot");
+  const dismiss=()=>boot.classList.add("out");
+  boot.addEventListener("click", dismiss);
+  if(location.hash || sessionStorage.getItem("hudBooted")) { dismiss(); }
+  else {
+    const lines=["AUTH NODE TITUS","MOUNT TRADING VAULT","LOAD FLOORS 1–4","SYNC PAPER PA32F…","ARM HUMAN GATE","HUD LIVE"];
+    const log=document.getElementById("bootLog"); let i=0;
+    const id=setInterval(()=>{ log.textContent += "> "+lines[i++]+"\n"; if(i>=lines.length){ clearInterval(id); setTimeout(()=>{ dismiss(); sessionStorage.setItem("hudBooted","1"); }, 250);} }, 160);
+  }
+  document.getElementById("btnMenu").onclick=()=>document.querySelector("nav.rail").classList.toggle("open");
+  document.querySelectorAll("nav.rail [data-go]").forEach(b=>b.addEventListener("click",()=>document.querySelector("nav.rail").classList.remove("open")));
+})();
+
+renderUniverse(); renderRank(); renderSide(); renderJournal(); renderPreview();
+document.getElementById("tEq").value=S.equity;
+if(location.hash){ const [v,tab]=location.hash.replace("#","").split("/"); if(v) goto(v,tab); }
+</script>
+</body>
+</html>
