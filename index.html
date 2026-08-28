@@ -221,7 +221,8 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
       </div>
     </div>
     <span class="chip" id="phaseChip"><b>PHASE</b>&nbsp;<span id="phase">BOOT</span></span>
-    <span class="chip ok" id="modeChip">PAPER · PA32F9675IY4</span>
+    <span class="chip" id="dataChip">DATA · CONNECTING…</span>
+    <span class="chip ok" id="modeChip">ACCOUNT · —</span>
     <span class="chip warn" id="verdictChip">SCAN · LOADING</span>
     <button class="icon-btn" id="btnPalette" title="Command palette">⌘K</button>
     <div class="clock-block">
@@ -332,16 +333,17 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
         <div class="panel">
           <table>
             <tr><th>Source</th><th>What</th><th>How</th></tr>
-            <tr><td>Alpaca screener</td><td>Most-active, gainers/losers</td><td>MCP / alpaca-py</td></tr>
-            <tr><td>Alpaca market data</td><td>5-min OHLCV, snapshots, quotes</td><td>same</td></tr>
-            <tr><td>yfinance fallback</td><td>5-min bars, 30d RVOL baseline</td><td>scanner.py</td></tr>
-            <tr><td>Alpaca clock</td><td>Open/close, half-days</td><td>get_clock</td></tr>
+            <tr><td>/api/scan</td><td>Universe rows: last, gap, RVOL, OR, session VWAP, 5-min closes, NBBO spread</td><td>Vercel fn → Alpaca data API (keys stay server-side)</td></tr>
+            <tr><td>/api/account</td><td>Live equity, weekly drawdown, cooling-off, trades today, clock</td><td>Vercel fn → Alpaca trading API</td></tr>
+            <tr><td>/api/journal</td><td>Round trips rebuilt from actual fills + bracket legs</td><td>Vercel fn → Alpaca closed orders (nested)</td></tr>
+            <tr><td>Alpaca screener</td><td>Most-active + top gainers added to the core universe</td><td>inside /api/scan, best-effort</td></tr>
           </table>
+          <p>All three endpoints are read-only proxies. There is no order route anywhere in this deployment.</p>
         </div>
       </div>
       <div data-pane="cap" class="hidden">
         <div class="panel">
-          <p>Edit gap and RVOL on the Universe tab. Score = |gap%| + OR RVOL. Click a row to promote it to Floor 2/3. Dynamic additions: top-10 trade count + top-10 gainers if they pass the $3–$100 band and spread gate.</p>
+          <p>In LIVE mode every cell is fed by /api/scan and locked — you cannot type a friendlier gap into the table. Editing is only possible in SIM mode (no API link) for drills. Score = |gap%| + OR RVOL. Click a row to promote it to Floor 2/3. Dynamic additions: top-10 trade count + top-10 gainers if they pass the $3–$100 band and spread gate.</p>
           <p>Static core: SOXL TQQQ INTC SOFI NIO RIVN LCID AAL MARA F PLTR AMD MU AAPL TSLA</p>
         </div>
       </div>
@@ -493,6 +495,12 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
       </div>
       <div data-pane="journal" class="hidden">
         <div class="panel">
+          <div class="row" style="margin-bottom:8px">
+            <button class="btn" id="btnSyncJournal">SYNC FROM ALPACA</button>
+            <span class="ticket-card" id="journalSync">Not synced yet.</span>
+          </div>
+          <p class="ticket-card" style="margin-top:0">Fills, stops, targets, exits and R are reconstructed from what actually happened at the broker — never typed. Click the PLAN cell of a row to flag a protocol breach. The manual form below is for no-trade observations and SIM drills only.</p>
+          <table id="jTable" style="margin-bottom:12px"></table>
           <div class="grid g3">
             <div><label>DATE</label><input id="jDate" /></div>
             <div><label>SYMBOL</label><input id="jSym" /></div>
@@ -511,16 +519,15 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
           <label>ONE SENTENCE</label>
           <input id="jNote" placeholder="did we follow the plan?" />
           <div class="row" style="margin-top:10px">
-            <button class="btn gold" id="btnJournal">APPEND JOURNAL</button>
+            <button class="btn gold" id="btnJournal">APPEND MANUAL NOTE</button>
             <button class="btn ghost" id="btnCsv">EXPORT CSV</button>
           </div>
-          <table id="jTable" style="margin-top:12px"></table>
         </div>
       </div>
       <div data-pane="safe" class="hidden">
         <div class="panel">
           <ul>
-            <li>This HUD cannot place orders. The bot never decides to go live — only you do.</li>
+            <li>This HUD cannot place orders. The /api endpoints are read-only proxies — no order route exists in this deployment. The bot never decides to go live — only you do.</li>
             <li>Paper proving ground: PA32F9675IY4. Live keys stay in env, never in files.</li>
             <li>Un-journaled trade, moved stop, or second trade in a day = protocol breach → 1-week paper-only reset.</li>
             <li>Kill switch: a file named STOP in the project root. Never delete it if present.</li>
@@ -556,9 +563,13 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
       </div>
       <div data-pane="n40" class="hidden">
         <div class="panel">
-          <div class="kpi"><div class="l">PAPER TRADES LOGGED</div><div class="v" id="nCount">0 / 40</div></div>
+          <div class="grid g2">
+            <div class="kpi"><div class="l">PAPER TRADES LOGGED</div><div class="v" id="nCount">0 / 40</div></div>
+            <div class="kpi gold"><div class="l">EVIDENCE TIER</div><div class="v" id="nTier" style="font-size:16px">NO DATA</div></div>
+          </div>
           <div class="bar" style="margin:12px 0"><i id="nBar" style="width:2%"></i></div>
           <div id="nStats" class="ticket-card"></div>
+          <p class="ticket-card" style="margin-top:10px">n=5 is interesting. n=40 is validation. 100+ across different market regimes starts becoming evidence. Nothing below that earns size.</p>
         </div>
       </div>
     </section>
@@ -598,15 +609,26 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
         </div>
       </div>
       <div class="panel">
+        <h3 style="margin:0 0 8px;font-family:var(--disp);letter-spacing:.14em;font-size:12px;color:var(--cyan)">DATA LINK</h3>
         <div class="grid g3">
+          <div><label>API BASE URL (blank = same origin)</label><input id="apiBase" placeholder="https://your-hud.vercel.app" /></div>
+          <div><label>API TOKEN (only if HUD_ACCESS_TOKEN is set)</label><input id="apiToken" type="password" placeholder="optional" /></div>
+          <div><label>&nbsp;</label><button class="btn" id="btnTestApi">CONNECT / REFRESH</button></div>
+        </div>
+        <div class="ticket-card" id="apiStatus" style="margin-top:8px">Not connected.</div>
+      </div>
+      <div class="panel">
+        <div class="grid g4">
           <div><label>ACCOUNT MODE</label>
             <select id="acctType"><option value="cash">CASH (T+1, no PDT)</option><option value="margin">MARGIN (3 day-trades / 5 days)</option></select>
           </div>
-          <div><label>COOLING-OFF (loss yesterday)</label>
-            <select id="cool"><option value="0">OFF</option><option value="1">ON — observation only</option></select>
+          <div><label>COOLING-OFF GATE</label>
+            <select id="cool"><option value="auto">AUTO — from real results</option><option value="force">FORCE ON — observe today</option></select>
           </div>
-          <div><label>WEEKLY DRAWDOWN %</label><input id="wdd" type="number" step="0.1" value="0" /></div>
+          <div><label>SIM EQUITY $ (SIM only)</label><input id="simEq" type="number" step="1" value="750" /></div>
+          <div><label>SIM WEEKLY DD % (SIM only)</label><input id="wdd" type="number" step="0.1" value="0" /></div>
         </div>
+        <p class="ticket-card" style="margin-top:8px">In LIVE mode equity, weekly drawdown, cooling-off and the one-trade-per-day count come from the Alpaca account and cannot be edited here. FORCE ON can only make the cooling-off gate stricter — it can never clear a real cooling-off day.</p>
       </div>
     </section>
   </main>
@@ -618,6 +640,8 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
     <div id="sideGates"></div>
     <h3 style="margin-top:18px">ACCOUNT</h3>
     <div class="kpi"><div class="l">RISK CAP 2%</div><div class="v" id="sideRisk">$15.00</div></div>
+    <div class="kpi" style="margin-top:8px"><div class="l">WEEKLY DD</div><div class="v" id="sideDd">0.0%</div></div>
+    <div class="kpi" style="margin-top:8px"><div class="l">TRADES TODAY</div><div class="v" id="sideTrades">0 / 1</div></div>
     <div class="kpi" style="margin-top:8px"><div class="l">POSITIONS</div><div class="v">MAX 1</div></div>
   </aside>
 
@@ -627,11 +651,14 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
 <div id="palette"><div class="box"><input id="palIn" placeholder="jump to floor, ticket, journal, lab…" /><div class="plist" id="palList"></div></div></div>
 <div id="modal"><div class="box" id="modalBox"></div></div>
 
+<script src="lib/engine.js"></script>
 <script src="https://unpkg.com/three@0.160.1/build/three.min.js"></script>
 <script>
 /* ========== STATE ========== */
+const E = window.GladiatorEngine;
 const UNIVERSE_CORE = ["SOXL","TQQQ","INTC","SOFI","NIO","RIVN","LCID","AAL","MARA","F","PLTR","AMD","MU","AAPL","TSLA"];
-const QUOTES = [
+/* SIM data — used ONLY when no API link is available. Clearly labeled in the UI. */
+const SIM_QUOTES = [
   {symbol:"SOXL",price:116.17,prev:115.81,gap:0.31,rvol:0.9,orh:117.4,orl:114.8},
   {symbol:"TQQQ",price:70.32,prev:69.89,gap:0.62,rvol:1.1,orh:71.1,orl:69.4},
   {symbol:"INTC",price:87.42,prev:87.58,gap:-0.18,rvol:0.8,orh:88.2,orl:86.9},
@@ -647,9 +674,10 @@ const QUOTES = [
   {symbol:"MU",price:939.46,prev:930.00,gap:1.02,rvol:1.3,orh:948,orl:928},
   {symbol:"AAPL",price:312.98,prev:309.35,gap:1.17,rvol:0.7,orh:315,orl:308},
   {symbol:"TSLA",price:344.98,prev:350.70,gap:-1.63,rvol:1.1,orh:352,orl:342}
-];
-const INDEX = {SPY:{price:765.71,gap:0.10},QQQ:{price:710.92,gap:0.21}};
-const LAST_SCAN = {date:"2026-08-26",verdict:"NO_TRADE",top:"MARA",score:3.07,reason:"stop too wide (3.0% of price; cap 3% with slippage margin)"};
+].map(q=>({...q,
+  bid:+(q.price*0.9995).toFixed(2), ask:+(q.price*1.0005).toFixed(2),
+  vwap:+(q.price*0.998).toFixed(2), lastClose5m:q.price, orReady:true, sim:true}));
+const SIM_INDEX = {SPY:{price:765.71,gap:0.10},QQQ:{price:710.92,gap:0.21}};
 const SWEEPS = [
   {label:"ORB no-filter fix15", n:90, win:0.39, avg:-0.132, pf:0.70},
   {label:"ORB PDH fix15", n:23, win:0.39, avg:-0.151, pf:0.56},
@@ -660,64 +688,108 @@ const SWEEPS = [
   {label:"VWAP K2.5 s1.0", n:360, win:0.23, avg:-0.439, pf:0.49},
   {label:"IN-PLAY TOP1 ORB", n:5, win:null, avg:0.45, pf:4.59}
 ];
-const STORE="GLADIATOR_SCALP_HUD_v1";
+const START_EQUITY = 750;
+const STORE = "GLADIATOR_SCALP_HUD_v2";
 const S = loadState();
+/* runtime live-data holder (not persisted except journal cache) */
+const LIVE = { scan:null, account:null, lastOk:0, failures:0, lastError:null };
 
 function loadState(){
   try{
     const raw = JSON.parse(localStorage.getItem(STORE)||"{}");
     return {
-      equity: raw.equity ?? 750,
-      cool: raw.cool ?? false,
-      wdd: raw.wdd ?? 0,
+      apiBase: raw.apiBase ?? "",
+      apiToken: raw.apiToken ?? "",
+      simEquity: raw.simEquity ?? START_EQUITY,
+      simCool: false,
+      forceCool: raw.forceCool ?? false,
+      simWdd: raw.simWdd ?? 0,
       acct: raw.acct ?? "cash",
-      journal: raw.journal ?? [],
-      ticket: raw.ticket ?? null,
-      rows: (raw.rows && raw.rows.length) ? raw.rows : structuredClone(QUOTES),
-      inBandOnly: raw.inBandOnly ?? false
+      manualJournal: raw.manualJournal ?? [],
+      alpacaJournal: raw.alpacaJournal ?? [],
+      journalAsOf: raw.journalAsOf ?? null,
+      notes: raw.notes ?? {},
+      simRows: (raw.simRows && raw.simRows.length) ? raw.simRows : structuredClone(SIM_QUOTES),
+      inBandOnly: raw.inBandOnly ?? false,
+      ticket: raw.ticket ?? null
     };
-  }catch(e){ return {equity:750,cool:false,wdd:0,acct:"cash",journal:[],ticket:null,rows:structuredClone(QUOTES),inBandOnly:false}; }
+  }catch(e){
+    return {apiBase:"",apiToken:"",simEquity:START_EQUITY,simCool:false,forceCool:false,simWdd:0,acct:"cash",
+      manualJournal:[],alpacaJournal:[],journalAsOf:null,notes:{},simRows:structuredClone(SIM_QUOTES),inBandOnly:false,ticket:null};
+  }
 }
 function save(){ localStorage.setItem(STORE, JSON.stringify(S)); }
 
-function score(r){ return Math.abs(+r.gap||0) + (+r.rvol||0); }
-function inBand(r){ return r.price>=3 && r.price<=100; }
-function ranked(){ return [...S.rows].map(r=>({...r, score:+score(r).toFixed(2)})).sort((a,b)=>b.score-a.score); }
-
-function buildTicket(row, equity){
-  const entry = +(row.orh * 1.0005).toFixed(2);
-  const stop = +(+row.orl).toFixed(2);
-  const riskPs = +(entry - stop).toFixed(4);
-  const reasons=[];
-  if(!inBand(row)) reasons.push("price outside $3–$100 band");
-  if(score(row)<2) reasons.push("score < 2.0 — not in play");
-  if(riskPs<=0) reasons.push("invalid OR (stop >= entry)");
-  if(riskPs/entry > 0.03) reasons.push(`stop too wide (${(riskPs/entry*100).toFixed(1)}% of price)`);
-  if(S.cool) reasons.push("cooling-off day after a loss");
-  if(equity<500) reasons.push("equity < $500 — halt");
-  if(S.wdd>6) reasons.push("weekly drawdown > 6% — stand down");
-  const maxRisk = equity * 0.02;
-  let shares = 0;
-  if(riskPs>0){
-    const byRisk = Math.floor(maxRisk / riskPs);
-    const byCash = Math.floor(equity / entry);
-    shares = Math.min(byRisk, byCash);
+/* ========== DATA LAYER — Alpaca via read-only /api proxies ========== */
+function apiBase(){ return (S.apiBase||"").trim().replace(/\/+$/,""); }
+function canApi(){ return !!apiBase() || location.protocol !== "file:"; }
+function mode(){
+  if(LIVE.scan && LIVE.account) return (Date.now()-LIVE.lastOk) < 120000 ? "LIVE" : "STALE";
+  return "SIM";
+}
+async function api(path){
+  const r = await fetch(apiBase()+path, { headers: S.apiToken ? {"x-hud-token": S.apiToken} : {} });
+  let j = {}; try{ j = await r.json(); }catch(e){}
+  if(!r.ok) throw new Error(j.error || ("HTTP "+r.status));
+  return j;
+}
+let pollTimer = null;
+async function refreshLive(){
+  clearTimeout(pollTimer);
+  if(!canApi()){
+    document.getElementById("apiStatus").textContent = "file:// with no API base set — running on SIM data. Paste your deployment URL above to go live.";
+    renderAll(); return;
   }
-  if(shares<1 && !reasons.length) reasons.push("cannot size >= 1 share within risk budget");
-  const target = +(entry + 1.5*riskPs).toFixed(2);
-  const ok = reasons.length===0 && shares>=1;
+  try{
+    const [scan, account] = await Promise.all([api("/api/scan"), api("/api/account")]);
+    LIVE.scan = scan; LIVE.account = account; LIVE.lastOk = Date.now(); LIVE.failures = 0; LIVE.lastError = null;
+    document.getElementById("apiStatus").innerHTML =
+      `<span style="color:var(--ok)">CONNECTED</span> — feed ${scan.feed} · ${scan.rows.length} symbols · market ${scan.clock.is_open?"OPEN":"CLOSED"} · account ${account.account_number} (${account.paper?"PAPER":"<b style='color:var(--bad)'>LIVE KEYS</b>"})`;
+    if(!S.journalAsOf) syncJournal().catch(()=>{});
+  }catch(e){
+    LIVE.failures++; LIVE.lastError = String(e.message||e);
+    document.getElementById("apiStatus").innerHTML = `<span style="color:var(--bad)">API ERROR</span> — ${LIVE.lastError}` +
+      (LIVE.scan ? " · showing last good data" : " · running on SIM data");
+  }
+  renderAll();
+  const open = LIVE.scan && LIVE.scan.clock && LIVE.scan.clock.is_open;
+  pollTimer = setTimeout(refreshLive, open ? 30000 : 300000);
+}
+async function syncJournal(){
+  const el = document.getElementById("journalSync");
+  el.textContent = "Syncing…";
+  try{
+    const j = await api("/api/journal?days=180");
+    S.alpacaJournal = j.entries || [];
+    S.journalAsOf = j.asOf;
+    save(); renderJournal();
+    el.innerHTML = `<span style="color:var(--ok)">${j.count} broker round trips</span> · synced ${new Date(j.asOf).toLocaleTimeString()}`;
+  }catch(e){
+    el.innerHTML = `<span style="color:var(--bad)">sync failed</span> — ${String(e.message||e)}`;
+    throw e;
+  }
+}
+
+/* ---- one source of truth: rows + risk context feed EVERY panel ---- */
+function rows(){ return mode()==="SIM" ? S.simRows : LIVE.scan.rows; }
+function indexData(){ return mode()==="SIM" ? SIM_INDEX : (LIVE.scan.index||SIM_INDEX); }
+function equity(){ return mode()==="SIM" ? S.simEquity : LIVE.account.equity; }
+function ctxBase(){
+  const live = mode()!=="SIM";
+  /* trust the exchange clock relayed by the server over the local one */
+  let mins = E.minutesET(new Date());
+  if(live && LIVE.scan.etNowMin!=null){
+    mins = LIVE.scan.etNowMin + Math.max(0, Math.round((Date.now()-new Date(LIVE.scan.asOf).getTime())/60000));
+  }
   return {
-    ok, reasons, symbol:row.symbol, setup:"ORB15-long",
-    score:+score(row).toFixed(2), gap_pct:+(+row.gap).toFixed(2), rvol:+(+row.rvol).toFixed(2),
-    entry_est:entry, stop, target, shares,
-    position_value:+(shares*entry).toFixed(2),
-    dollars_at_risk:+(shares*Math.max(riskPs,0)).toFixed(2),
-    entry_trigger:`5-min close above ${(+row.orh).toFixed(2)} AND above VWAP, then buy`,
-    time_stop:"15:55 ET — flat by close, no exceptions",
-    order_type:"bracket: limit entry, stop-loss + limit take-profit legs",
-    or_high:+row.orh, or_low:+row.orl, price:row.price
+    equity: equity(),
+    coolingOff: live ? (LIVE.account.coolingOff || S.forceCool) : S.forceCool,
+    weeklyDDPct: live ? LIVE.account.weeklyDDPct : S.simWdd,
+    tradedToday: live ? LIVE.account.tradedToday : 0,
+    minutesET: mins
   };
 }
+function verdict(){ return E.computeVerdict(rows(), ctxBase()); }
 
 /* ========== NAV ========== */
 function goto(view, tab){
@@ -733,7 +805,7 @@ function goto(view, tab){
   }
   if(view==="f2") renderRank();
   if(view==="f3"){ fillTicketForm(); computeTicket(); }
-  if(view==="f4") renderPreview();
+  if(view==="f4"){ renderPreview(); renderJournal(); }
   if(view==="lab") { drawSweep(); drawEq(); renderN40(); }
 }
 document.querySelectorAll("[data-go]").forEach(el=>el.addEventListener("click",()=>goto(el.dataset.go)));
@@ -764,7 +836,7 @@ function phaseOf(d){
   if(t<585) return {name:"PRE-MARKET SWEEP", next:"09:45 OR capture", target:585};
   if(t<960) return {name:"SESSION LIVE", next:"15:55 time stop", target:960};
   if(t<970) return {name:"FLAT / TIME STOP", next:"16:10 journal", target:970};
-  return {name:"CLOSED / ARCHIVE", next:"Tue 09:00" , target:null};
+  return {name:"CLOSED / ARCHIVE", next:"next 09:00" , target:null};
 }
 function tickClock(){
   const d = nyNow();
@@ -789,24 +861,54 @@ function tickClock(){
 }
 setInterval(tickClock, 1000); tickClock();
 
-/* ========== TABLES ========== */
+/* ========== RENDER ========== */
+const fm = x => (x==null || !isFinite(+x)) ? "—" : (+x).toFixed(2);
+function renderAll(){
+  renderDataChip();
+  renderUniverse();
+  renderRank();
+  if(document.getElementById("tSym").value) computeTicket(true);
+  renderSide();
+  renderPreview();
+  renderN40();
+}
+function renderDataChip(){
+  const m = mode();
+  const chip = document.getElementById("dataChip");
+  const asOf = LIVE.scan ? new Date(LIVE.scan.asOf).toLocaleTimeString() : "";
+  chip.className = "chip " + (m==="LIVE"?"ok": m==="STALE"?"warn":"bad");
+  chip.textContent = m==="LIVE" ? `DATA · LIVE ${asOf}` : m==="STALE" ? `DATA · STALE ${asOf}` : "DATA · SIM — NOT LIVE";
+  const mc = document.getElementById("modeChip");
+  if(LIVE.account){
+    mc.className = "chip " + (LIVE.account.paper ? "ok" : "bad");
+    mc.textContent = (LIVE.account.paper ? "PAPER · " : "⚠ LIVE · ") + LIVE.account.account_number;
+  } else {
+    mc.className = "chip warn"; mc.textContent = "ACCOUNT · OFFLINE";
+  }
+}
+
 function renderUniverse(){
   const q = (document.getElementById("uniFilter").value||"").toUpperCase();
-  let rows = ranked();
-  if(S.inBandOnly) rows = rows.filter(inBand);
-  if(q) rows = rows.filter(r=>r.symbol.includes(q));
-  const html = `<tr><th>SYM</th><th>LAST</th><th>GAP%</th><th>RVOL</th><th>SCORE</th><th>OR H</th><th>OR L</th><th>BAND</th></tr>` +
-    rows.map(r=>{
-      const sc=score(r);
+  const sim = mode()==="SIM";
+  let list = E.rank(rows());
+  if(S.inBandOnly) list = list.filter(E.inBand);
+  if(q) list = list.filter(r=>r.symbol.includes(q));
+  const ed = k => sim ? ` contenteditable="true" data-k="${k}"` : "";
+  const html = `<tr><th>SYM</th><th>LAST</th><th>GAP%</th><th>RVOL</th><th>SCORE</th><th>OR H</th><th>OR L</th><th>VWAP</th><th>SPRD%</th><th>GATE</th></tr>` +
+    list.map(r=>{
+      const el = E.rowEligible(r);
+      const sp = E.spreadPct(r);
       return `<tr data-sym="${r.symbol}">
-        <td>${r.symbol}</td>
-        <td>${r.price.toFixed(2)}</td>
-        <td contenteditable="true" data-k="gap">${(+r.gap).toFixed(2)}</td>
-        <td contenteditable="true" data-k="rvol">${(+r.rvol).toFixed(2)}</td>
-        <td>${sc.toFixed(2)}</td>
-        <td contenteditable="true" data-k="orh">${(+r.orh).toFixed(2)}</td>
-        <td contenteditable="true" data-k="orl">${(+r.orl).toFixed(2)}</td>
-        <td>${inBand(r)?'<span class="pill go">IN</span>':'<span class="pill no">OUT</span>'}</td>
+        <td>${r.symbol}${r.dyn?'<span class="pill mid" style="margin-left:4px">DYN</span>':""}</td>
+        <td>${fm(r.price)}</td>
+        <td${ed("gap")}>${fm(r.gap)}</td>
+        <td${ed("rvol")}>${fm(r.rvol)}</td>
+        <td>${E.score(r).toFixed(2)}</td>
+        <td${ed("orh")}>${fm(r.orh)}</td>
+        <td${ed("orl")}>${fm(r.orl)}</td>
+        <td>${fm(r.vwap)}</td>
+        <td>${sp==null?"—":sp.toFixed(3)}</td>
+        <td>${el.pass?'<span class="pill go">PASS</span>':`<span class="pill no" title="${el.fails.join(" · ")}">${el.fails.length} FAIL</span>`}</td>
       </tr>`;
     }).join("");
   document.getElementById("uniTable").innerHTML = html;
@@ -819,147 +921,209 @@ document.getElementById("uniTable").addEventListener("click", e=>{
 });
 document.getElementById("uniTable").addEventListener("blur", e=>{
   const k=e.target.dataset.k; if(!k) return;
+  if(mode()!=="SIM"){ renderUniverse(); return; } /* live cells are read-only */
   const tr=e.target.closest("tr[data-sym]");
-  const row=S.rows.find(r=>r.symbol===tr.dataset.sym);
+  const row=S.simRows.find(r=>r.symbol===tr.dataset.sym);
+  if(!row) return;
   row[k]=parseFloat(e.target.textContent)||0;
-  save(); renderUniverse(); renderRank(); renderSide();
+  save(); renderAll();
 }, true);
 document.getElementById("uniFilter").addEventListener("input", renderUniverse);
 document.getElementById("btnBand").onclick=()=>{S.inBandOnly=!S.inBandOnly;save();renderUniverse();};
-document.getElementById("btnResetScan").onclick=()=>{S.rows=structuredClone(QUOTES);save();renderUniverse();renderRank();};
+document.getElementById("btnResetScan").onclick=()=>{S.simRows=structuredClone(SIM_QUOTES);save();renderAll();};
 
 function renderRank(){
-  const rows = ranked();
-  const top = rows[0];
-  const width = top? (top.orh-top.orl)/top.price*100 : 99;
-  const play = top && score(top)>=2 && inBand(top) && width<=3;
-  const veto = top && score(top)>=2 && (!inBand(top) || width>3);
+  const v = verdict();
+  const list = v.ranked;
+  const top = list[0];
   document.getElementById("kpiTop").innerHTML = `<div class="l">TOP NAME</div><div class="v">${top?top.symbol:"—"}</div>`;
-  document.getElementById("kpiPlay").className = "kpi "+(play?"ok":"bad");
-  document.getElementById("kpiPlay").innerHTML = `<div class="l">IN PLAY?</div><div class="v">${play?"YES": veto?"VETO":"NO"}</div>`;
+  const play = v.verdict==="TRADE_ARMED" || v.verdict==="STAGED";
+  document.getElementById("kpiPlay").className = "kpi "+(v.verdict==="TRADE_ARMED"?"ok": play?"warn":"bad");
+  document.getElementById("kpiPlay").innerHTML = `<div class="l">IN PLAY?</div><div class="v">${v.verdict==="TRADE_ARMED"?"ARMED": v.verdict==="STAGED"?"STAGED":"NO"}</div>`;
   document.getElementById("rankTable").innerHTML =
-    `<tr><th>#</th><th>SYM</th><th>SCORE</th><th>GAP</th><th>RVOL</th><th>WIDTH%</th><th>ADVANCE</th></tr>`+
-    rows.map((r,i)=>{
-      const width = (r.orh-r.orl)/r.price*100;
-      const pass = score(r)>=2 && inBand(r) && width<=3;
-      return `<tr data-sym="${r.symbol}"><td>${i+1}</td><td>${r.symbol}</td><td>${score(r).toFixed(2)}</td>
-        <td>${(+r.gap).toFixed(2)}</td><td>${(+r.rvol).toFixed(2)}</td><td>${width.toFixed(2)}</td>
-        <td>${i===0 && pass?'<span class="pill go">TOP-1</span>': i===0?'<span class="pill no">VETO</span>':'<span class="pill mid">WAIT</span>'}</td></tr>`;
+    `<tr><th>#</th><th>SYM</th><th>SCORE</th><th>GAP</th><th>RVOL</th><th>WIDTH%</th><th>SPRD%</th><th>ADVANCE</th></tr>`+
+    list.map((r,i)=>{
+      const el = E.rowEligible(r);
+      const w = E.orWidthPct(r), sp = E.spreadPct(r);
+      return `<tr data-sym="${r.symbol}"><td>${i+1}</td><td>${r.symbol}</td><td>${E.score(r).toFixed(2)}</td>
+        <td>${fm(r.gap)}</td><td>${fm(r.rvol)}</td><td>${w==null?"—":w.toFixed(2)}</td><td>${sp==null?"—":sp.toFixed(3)}</td>
+        <td>${i===0 && el.pass?'<span class="pill go">TOP-1</span>': i===0?`<span class="pill no" title="${el.fails.join(" · ")}">VETO</span>`:'<span class="pill mid">WAIT</span>'}</td></tr>`;
     }).join("");
-  const t = buildTicket(top, S.equity);
-  document.getElementById("f2gates").innerHTML = gateHtml(t, top);
+  document.getElementById("f2gates").innerHTML =
+    `<h3 style='margin-top:0;font-family:var(--disp);letter-spacing:.14em;font-size:12px'>GATES — TOP-1 ${v.top??"—"}</h3>`+
+    (v.ticket? gateHtml(v.ticket) : "no data");
 }
 document.getElementById("rankTable")?.addEventListener("click", e=>{
   const tr=e.target.closest("tr[data-sym]"); if(tr) promote(tr.dataset.sym);
 });
 
-function gateHtml(t, row){
-  const width = row? (row.orh-row.orl)/row.price*100 : 0;
-  const items = [
-    ["Score ≥ 2.0", t.score>=2],
-    ["Price $3–$100", row?inBand(row):false],
-    ["OR width ≤ 3%", width<=3],
-    ["Top-1 ranked", true],
-    ["Cooling-off clear", !S.cool],
-    ["Equity ≥ $500", S.equity>=500],
-    ["Weekly DD ≤ 6%", S.wdd<=6],
-    ["Can size ≥ 1 share", t.shares>=1],
-    ["Stop fits 2% risk", t.ok]
-  ];
-  return items.map(([k,ok])=>`<div class="gate"><span>${k}</span><span class="st" style="color:${ok?'var(--ok)':'var(--bad)'}">${ok?"PASS":"FAIL"}</span></div>`).join("");
+function gateHtml(t){
+  return t.gates.map(g=>
+    `<div class="gate"><span>${g.label}${g.blocking?"":" <small style='color:var(--dim)'>(arm)</small>"}</span>`+
+    `<span class="st" style="color:${g.pass?'var(--ok)':'var(--bad)'}">${g.pass?"PASS":"FAIL"} <small style="color:var(--dim)">${g.detail}</small></span></div>`
+  ).join("");
 }
 
+/* ========== TICKET (Floor 3) ========== */
 function promote(sym){
-  const row = S.rows.find(r=>r.symbol===sym);
+  const row = rows().find(r=>r.symbol===sym);
   if(!row) return;
-  document.getElementById("tSym").value = row.symbol;
-  document.getElementById("tOrh").value = row.orh;
-  document.getElementById("tOrl").value = row.orl;
-  document.getElementById("tGap").value = row.gap;
-  document.getElementById("tRvol").value = row.rvol;
-  document.getElementById("tEq").value = S.equity;
+  setForm(row);
   computeTicket();
   goto("f3","ticket");
 }
-
+function setForm(row){
+  document.getElementById("tSym").value = row.symbol ?? "";
+  document.getElementById("tOrh").value = row.orh ?? "";
+  document.getElementById("tOrl").value = row.orl ?? "";
+  document.getElementById("tGap").value = row.gap ?? "";
+  document.getElementById("tRvol").value = row.rvol ?? "";
+  document.getElementById("tEq").value = equity();
+  syncFormLock();
+}
+function syncFormLock(){
+  const live = mode()!=="SIM";
+  ["tOrh","tOrl","tGap","tRvol","tEq"].forEach(id=>{
+    const el=document.getElementById(id);
+    el.readOnly = live;
+    el.style.opacity = live ? .7 : 1;
+    el.title = live ? "LIVE mode — fed by Alpaca, not editable" : "";
+  });
+}
 function fillTicketForm(){
-  document.getElementById("tEq").value = S.equity;
+  document.getElementById("tEq").value = equity();
+  syncFormLock();
   if(!document.getElementById("tSym").value){
-    const top = ranked()[0];
-    if(top){ document.getElementById("tSym").value=top.symbol;
-      document.getElementById("tOrh").value=top.orh; document.getElementById("tOrl").value=top.orl;
-      document.getElementById("tGap").value=top.gap; document.getElementById("tRvol").value=top.rvol; }
+    const top = E.rank(rows())[0];
+    if(top) setForm(top);
+  } else if(mode()!=="SIM"){
+    const row = rows().find(r=>r.symbol===document.getElementById("tSym").value.toUpperCase().trim());
+    if(row) setForm(row);
   }
 }
-function currentRowFromForm(){
+function currentRow(){
+  const sym=(document.getElementById("tSym").value||"").toUpperCase().trim();
+  if(!sym) return null;
+  const base = rows().find(r=>r.symbol===sym) || null;
+  if(mode()!=="SIM") return base || {symbol:sym}; /* live: the feed is the truth, not the form */
+  const gv = id => { const v=parseFloat(document.getElementById(id).value); return isFinite(v)?v:null; };
   return {
-    symbol: document.getElementById("tSym").value.toUpperCase().trim(),
-    price: (S.rows.find(r=>r.symbol===document.getElementById("tSym").value.toUpperCase())||{price:0}).price,
-    orh:+document.getElementById("tOrh").value, orl:+document.getElementById("tOrl").value,
-    gap:+document.getElementById("tGap").value, rvol:+document.getElementById("tRvol").value
+    symbol:sym,
+    price: base? base.price : 0,
+    orh:gv("tOrh"), orl:gv("tOrl"), gap:gv("tGap"), rvol:gv("tRvol"),
+    bid: base?base.bid:null, ask: base?base.ask:null,
+    vwap: base?base.vwap:null, lastClose5m: base?base.lastClose5m:null,
+    orReady: base? base.orReady!==false : true
   };
 }
-function computeTicket(){
-  S.equity = +document.getElementById("tEq").value || S.equity;
-  const row = currentRowFromForm();
-  const t = buildTicket(row, S.equity);
+function computeTicket(silent){
+  if(mode()==="SIM") S.simEquity = +document.getElementById("tEq").value || S.simEquity;
+  const row = currentRow();
+  if(!row){ if(!silent){ document.getElementById("ticketOut").textContent="Pick a symbol (or LOAD TOP NAME)."; } return; }
+  const ranked = E.rank(rows());
+  const ctx = {...ctxBase(), topSymbol: ranked.length? ranked[0].symbol : null};
+  const t = E.buildTicket(row, ctx);
   S.ticket = t; save();
   document.getElementById("ticketOut").textContent = JSON.stringify(t, null, 2);
-  document.getElementById("f3gates").innerHTML = "<h3 style='margin-top:0;font-family:var(--disp);letter-spacing:.14em;font-size:12px'>GATES</h3>"+gateHtml(t,row)+
-    (t.ok?`<div class="ok-banner" style="margin-top:10px">TICKET ARMED — still requires human --approve on Floor 4</div>`:
+  document.getElementById("f3gates").innerHTML =
+    "<h3 style='margin-top:0;font-family:var(--disp);letter-spacing:.14em;font-size:12px'>GATES — EVERY ONE ENFORCED</h3>"+gateHtml(t)+
+    (t.armed?`<div class="ok-banner" style="margin-top:10px">TICKET ARMED — all gates + trigger pass. Still requires human --approve on Floor 4.</div>`:
+     t.ok?`<div class="warn-banner" style="margin-top:10px">STAGED — structural gates pass. Waiting on trigger: 5m close &gt; OR-H &amp; VWAP.</div>`:
           `<div class="warn-banner" style="margin-top:10px">NO TRADE · ${t.reasons.join(" · ")}</div>`);
   document.getElementById("sizerKpis").innerHTML = `
-    <div class="kpi"><div class="l">ENTRY</div><div class="v">${t.entry_est}</div></div>
-    <div class="kpi bad"><div class="l">STOP</div><div class="v">${t.stop}</div></div>
-    <div class="kpi ok"><div class="l">TARGET 1.5R</div><div class="v">${t.target}</div></div>
+    <div class="kpi"><div class="l">ENTRY</div><div class="v">${fm(t.entry_est)}</div></div>
+    <div class="kpi bad"><div class="l">STOP</div><div class="v">${fm(t.stop)}</div></div>
+    <div class="kpi ok"><div class="l">TARGET 1.5R</div><div class="v">${fm(t.target)}</div></div>
     <div class="kpi gold"><div class="l">SHARES</div><div class="v">${t.shares}</div></div>`;
   renderSide();
   renderPreview();
 }
-document.getElementById("btnBuild").onclick=computeTicket;
-document.getElementById("btnLoadTop").onclick=()=>{ const top=ranked().filter(inBand)[0]||ranked()[0]; promote(top.symbol); };
+document.getElementById("btnBuild").onclick=()=>computeTicket();
+document.getElementById("btnLoadTop").onclick=()=>{
+  const top = E.rank(rows())[0];
+  if(top) promote(top.symbol);
+};
 document.getElementById("btnExport").onclick=()=>{
   if(!S.ticket) computeTicket();
+  if(!S.ticket) return;
   const blob = new Blob([JSON.stringify(S.ticket,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
   a.download=`ticket_${new Date().toISOString().slice(0,10)}.json`; a.click();
 };
 
+/* ========== PREVIEW (Floor 4) ========== */
 function renderPreview(){
   const t=S.ticket;
   const el=document.getElementById("previewBox");
   if(!t){ el.textContent="No ticket. Build one on Floor 3."; return; }
-  el.textContent = t.ok
-    ? `=== ORDER PREVIEW ===\n  ${t.symbol}  BUY ${t.shares} sh  limit ${t.entry_est}\n  bracket: stop ${t.stop}  |  take-profit ${t.target}  |  TIF day\n  $ at risk: ${t.dollars_at_risk}  position: ${t.position_value}\n\nDRY RUN — HUD submits nothing.`
+  el.textContent = t.armed
+    ? `=== ORDER PREVIEW · ARMED ===\n  ${t.symbol}  BUY ${t.shares} sh  limit ${t.entry_est}\n  bracket: stop ${t.stop}  |  take-profit ${t.target}  |  TIF day\n  $ at risk: ${t.dollars_at_risk}  position: ${t.position_value}\n\nDRY RUN — HUD submits nothing. You run executor.py --approve.`
+    : t.ok
+    ? `=== STAGED · NOT ARMED ===\n  ${t.symbol}  ${t.shares} sh  limit ${t.entry_est} / stop ${t.stop} / tgt ${t.target}\n  waiting on trigger: 5-min close > ${fm(t.or_high)} AND > VWAP ${fm(t.vwap)}\n  (last 5m close: ${fm(t.last_close_5m)})`
     : `VERDICT: NO TRADE\n${t.reasons.join("\n")}`;
 }
 document.getElementById("btnDry").onclick=()=>{
-  const t=S.ticket; if(!t){computeTicket();}
-  document.getElementById("dryOut").innerHTML = S.ticket.ok
-    ? `<span style="color:var(--yellow)">DRY RUN COMPLETE</span> — would submit PAPER bracket on ${S.ticket.symbol}. Re-run executor.py with --approve to actually send. HUD will not.`
-    : `<span style="color:var(--bad)">BLOCKED</span> — ${S.ticket.reasons.join("; ")}`;
+  if(!S.ticket) computeTicket();
+  const t=S.ticket;
+  if(!t){ document.getElementById("dryOut").textContent="No ticket."; return; }
+  document.getElementById("dryOut").innerHTML = t.armed
+    ? `<span style="color:var(--yellow)">DRY RUN COMPLETE</span> — would submit PAPER bracket on ${t.symbol}. Run executor.py with --approve to actually send. HUD will not.`
+    : t.ok
+    ? `<span style="color:var(--orange)">HELD</span> — structurally valid but the trigger gate is not confirmed (5m close &gt; OR-H &amp; VWAP). The HUD refuses to arm early.`
+    : `<span style="color:var(--bad)">BLOCKED</span> — ${t.reasons.join("; ")}`;
 };
 document.getElementById("btnCopyCmd").onclick=()=>{
   const d=new Date().toISOString().slice(0,10);
   navigator.clipboard.writeText(`python bot/executor.py --ticket bot/tickets/ticket_${d}.json`);
 };
 
-/* journal */
+/* ========== JOURNAL — pulled from real fills ========== */
 document.getElementById("jDate").value = new Date().toISOString().slice(0,10);
+function mergedJournal(){
+  const auto=(S.alpacaJournal||[]).map(e=>({
+    ...e,
+    plan: (S.notes[e.id] && S.notes[e.id].plan) || "yes",
+    note: (S.notes[e.id] && S.notes[e.id].note) || ""
+  }));
+  return [...auto, ...S.manualJournal].sort((a,b)=> a.date<b.date?1:(a.date>b.date?-1:0));
+}
 function renderJournal(){
-  const rows=S.journal;
-  document.getElementById("jTable").innerHTML = `<tr><th>DATE</th><th>SYM</th><th>R</th><th>REASON</th><th>PLAN</th></tr>`+
-    (rows.length? rows.map(j=>`<tr><td>${j.date}</td><td>${j.symbol}</td><td>${j.r}</td><td>${j.reason}</td><td>${j.plan}</td></tr>`).join("") : `<tr><td colspan="5">No fills yet — empty journal is honest.</td></tr>`);
+  const list = mergedJournal();
+  document.getElementById("jTable").innerHTML =
+    `<tr><th>DATE</th><th>SYM</th><th>SRC</th><th>ENTRY</th><th>EXIT</th><th>R</th><th>REASON</th><th>PLAN</th></tr>`+
+    (list.length? list.map((j,i)=>`<tr>
+      <td>${j.date}</td><td>${j.symbol||"—"}</td>
+      <td>${j.src==="alpaca"?'<span class="pill go">ALPACA</span>':'<span class="pill mid">MANUAL</span>'}</td>
+      <td>${fm(j.entry)}</td><td>${fm(j.exit)}</td>
+      <td style="color:${(+j.r||0)>0?'var(--ok)':(+j.r||0)<0?'var(--bad)':'var(--dim)'}">${j.r==null?"—":(+j.r).toFixed(2)}</td>
+      <td>${j.reason||"—"}</td>
+      <td data-plan="${j.id||i}" data-src="${j.src||"manual"}" style="cursor:pointer" title="click to toggle followed-plan">${j.plan==="no"?'<span class="pill no">BREACH</span>':'<span class="pill go">YES</span>'}</td>
+    </tr>`).join("") : `<tr><td colspan="8">No fills yet — an empty journal is honest. SYNC pulls the truth from the broker.</td></tr>`);
   renderN40(); drawEq();
 }
+document.getElementById("jTable").addEventListener("click", e=>{
+  const td=e.target.closest("td[data-plan]"); if(!td) return;
+  const id=td.dataset.plan;
+  if(td.dataset.src==="alpaca"){
+    const cur=(S.notes[id]&&S.notes[id].plan)||"yes";
+    S.notes[id]={...(S.notes[id]||{}), plan: cur==="yes"?"no":"yes"};
+  } else {
+    const m=S.manualJournal.find(x=>String(x.id)===id) || S.manualJournal[+id];
+    if(m) m.plan = m.plan==="no"?"yes":"no";
+  }
+  save(); renderJournal();
+});
+document.getElementById("btnSyncJournal").onclick=()=>syncJournal().catch(()=>{});
 document.getElementById("btnJournal").onclick=()=>{
-  const entry=+document.getElementById("jEntry").value, stop=+document.getElementById("jStop").value, exit=+document.getElementById("jExit").value;
-  const risk=entry-stop; const r = risk? +((exit-entry)/risk).toFixed(3) : 0;
-  S.journal.unshift({
+  const gv=id=>{ const v=parseFloat(document.getElementById(id).value); return isFinite(v)?v:null; };
+  const entry=gv("jEntry"), stop=gv("jStop"), exit=gv("jExit");
+  S.manualJournal.unshift({
+    id:"m"+Date.now(), src:"manual",
     date:document.getElementById("jDate").value,
     symbol:document.getElementById("jSym").value.toUpperCase(),
     score:document.getElementById("jScore").value,
-    entry, stop, target:+document.getElementById("jTarget").value, exit, r,
+    entry, stop, target:gv("jTarget"), exit,
+    r: E.tradeR(entry, stop, exit),
     reason:document.getElementById("jReason").value,
     plan:document.getElementById("jPlan").value,
     note:document.getElementById("jNote").value
@@ -967,25 +1131,26 @@ document.getElementById("btnJournal").onclick=()=>{
   save(); renderJournal();
 };
 document.getElementById("btnCsv").onclick=()=>{
-  const head="date,symbol,score,shares,entry,stop,target,exit,r_result,reason,followed_plan\n";
-  const body=S.journal.map(j=>[j.date,j.symbol,j.score,"",j.entry,j.stop,j.target,j.exit,j.r,j.reason,j.plan].join(",")).join("\n");
+  const head="date,symbol,src,qty,entry,stop,target,exit,r_result,reason,followed_plan,note\n";
+  const body=mergedJournal().map(j=>[j.date,j.symbol,j.src,j.qty??"",j.entry??"",j.stop??"",j.target??"",j.exit??"",j.r??"",j.reason??"",j.plan??"",JSON.stringify(j.note||"")].join(",")).join("\n");
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([head+body],{type:"text/csv"}));
   a.download="journal.csv"; a.click();
 };
 
+/* ========== LAB ========== */
 function renderN40(){
-  const n=S.journal.filter(j=>j.reason!=="no_trade").length;
-  document.getElementById("nCount").textContent = n+" / 40";
-  document.getElementById("kpiN").textContent = n+"/40";
-  document.getElementById("nBar").style.width = Math.max(2, Math.min(100, n/40*100))+"%";
-  const rs=S.journal.filter(j=>typeof j.r==="number" && j.reason!=="no_trade").map(j=>j.r);
-  const wins=rs.filter(r=>r>0), losses=rs.filter(r=>r<=0);
-  const pf = losses.length && Math.abs(losses.reduce((a,b)=>a+b,0)) ? (wins.reduce((a,b)=>a+b,0)/Math.abs(losses.reduce((a,b)=>a+b,0))) : (wins.length?Infinity:0);
-  const avg = rs.length? rs.reduce((a,b)=>a+b,0)/rs.length : 0;
-  const breaches = S.journal.filter(j=>j.plan==="no").length;
+  const st = E.journalStats(mergedJournal(), START_EQUITY);
+  document.getElementById("nCount").textContent = st.n+" / 40";
+  document.getElementById("kpiN").textContent = st.n+"/40";
+  document.getElementById("nBar").style.width = Math.max(2, Math.min(100, st.n/40*100))+"%";
+  const tierEl=document.getElementById("nTier");
+  if(tierEl) tierEl.textContent = st.tier.label;
+  const v=E.RULES.validation;
   document.getElementById("nStats").innerHTML =
-    `PF ${isFinite(pf)?pf.toFixed(2):"∞"} · avg ${avg.toFixed(3)}R · breaches ${breaches}<br>`+
-    `GO LIVE GATE: PF≥1.3 and avg≥+0.15R and n≥40 and maxDD&lt;10% and 0 breaches in last 20.`;
+    `PF ${isFinite(st.pf)?st.pf.toFixed(2):"∞"} · avg ${st.avgR.toFixed(3)}R · win ${(st.winRate*100).toFixed(0)}% · maxDD ${st.maxDDPct.toFixed(1)}% · breaches ${st.breaches} (${st.breachesLast20} in last 20)<br>`+
+    `${st.tier.note}<br>`+
+    `GO-LIVE GATE: n≥${v.minTrades} · PF≥${v.minPF} · avg≥+${v.minAvgR}R · maxDD&lt;${v.maxDDPct}% · 0 breaches in last ${v.cleanLast} → `+
+    (st.goLive?`<b style="color:var(--ok)">MET — discuss going live</b>`:`<b style="color:var(--orange)">NOT MET — stay paper</b>`);
 }
 function drawSweep(){
   const c=document.getElementById("sweepChart"); if(!c) return;
@@ -1008,9 +1173,8 @@ function drawEq(){
   const c=document.getElementById("eqChart"); if(!c) return;
   const ctx=c.getContext("2d"); const w=c.width,h=c.height;
   ctx.fillStyle="#040a12"; ctx.fillRect(0,0,w,h);
-  let eq=S.equity, path=[eq];
-  [...S.journal].reverse().forEach(j=>{ if(typeof j.r==="number"){ eq += (S.equity*0.02)*j.r; path.push(eq);} });
-  if(path.length===1){ for(let i=1;i<12;i++) path.push(S.equity); }
+  const st = E.journalStats(mergedJournal(), START_EQUITY);
+  const path = st.equityPath.length>1 ? st.equityPath : Array(12).fill(START_EQUITY);
   const min=Math.min(...path), max=Math.max(...path), span=Math.max(1,max-min);
   ctx.beginPath(); ctx.strokeStyle="#00e8ff"; ctx.shadowColor="#00e8ff"; ctx.shadowBlur=10; ctx.lineWidth=2;
   path.forEach((v,i)=>{
@@ -1021,32 +1185,52 @@ function drawEq(){
   ctx.stroke();
 }
 
+/* ========== SIDE + DECK ========== */
 function renderSide(){
-  document.getElementById("kpiEq").textContent = "$"+S.equity.toFixed(0);
-  document.getElementById("kpiR").textContent = "$"+(S.equity*0.02).toFixed(2);
-  document.getElementById("sideRisk").textContent = "$"+(S.equity*0.02).toFixed(2);
-  const t=S.ticket;
-  document.getElementById("sideTicket").innerHTML = t
-    ? `<b>${t.symbol}</b> ${t.setup}<br>score ${t.score}<br>entry ${t.entry_est} · stop ${t.stop} · tgt ${t.target}<br>sh ${t.shares} · risk $${t.dollars_at_risk}<br>${t.ok?'<span class="pill go">ARMED</span>':'<span class="pill no">NO TRADE</span>'}`
+  const eq = equity();
+  document.getElementById("kpiEq").textContent = "$"+(+eq).toFixed(0);
+  document.getElementById("kpiR").textContent = "$"+(eq*E.RULES.riskPct).toFixed(2);
+  document.getElementById("sideRisk").textContent = "$"+(eq*E.RULES.riskPct).toFixed(2);
+  const ctx = ctxBase();
+  document.getElementById("sideDd").textContent = (ctx.weeklyDDPct||0).toFixed(1)+"%";
+  document.getElementById("sideTrades").textContent = (ctx.tradedToday||0)+" / 1";
+  const v = verdict();
+  const t = S.ticket || v.ticket;
+  document.getElementById("sideTicket").innerHTML = t && t.symbol!=="—"
+    ? `<b>${t.symbol}</b> ${t.setup}<br>score ${t.score}<br>entry ${fm(t.entry_est)} · stop ${fm(t.stop)} · tgt ${fm(t.target)}<br>sh ${t.shares} · risk $${fm(t.dollars_at_risk)}<br>${t.armed?'<span class="pill go">ARMED</span>': t.ok?'<span class="pill mid">STAGED</span>':'<span class="pill no">NO TRADE</span>'}`
     : "No ticket staged.";
-  const row = t? {price:t.price,orh:t.or_high,orl:t.or_low,gap:t.gap_pct,rvol:t.rvol,symbol:t.symbol}: ranked()[0];
-  document.getElementById("sideGates").innerHTML = gateHtml(t||buildTicket(row,S.equity), row);
-  const play = ranked().filter(r=>score(r)>=2 && inBand(r))[0];
-  document.getElementById("verdictChip").textContent = LAST_SCAN.date+" · "+LAST_SCAN.verdict+" · "+LAST_SCAN.top+" "+LAST_SCAN.score;
+  document.getElementById("sideGates").innerHTML = t? gateHtml(t) : "";
+  const vchip=document.getElementById("verdictChip");
+  const etDate = LIVE.scan? LIVE.scan.etDate : new Date().toISOString().slice(0,10);
+  vchip.className = "chip " + (v.verdict==="TRADE_ARMED"?"ok": v.verdict==="STAGED"?"warn":"bad");
+  vchip.textContent = `${etDate} · ${v.verdict} · ${v.top??"—"} ${v.score??""}`;
+  document.getElementById("kpiVerdict").innerHTML = `<div class="l">TODAY</div><div class="v">${v.verdict.replace("_"," ")}</div>`;
+  const acct = LIVE.account;
   document.getElementById("deskStatus").innerHTML =
-    `<b>${LAST_SCAN.date}</b> scanner verdict: <b style="color:var(--orange)">${LAST_SCAN.verdict}</b><br>
-     Top: ${LAST_SCAN.top} score ${LAST_SCAN.score}<br>${LAST_SCAN.reason}<br><br>
-     Live quotes loaded after the close — OR/RVOL cells are operator-editable so you can restage a 09:45 capture.`;
-  document.getElementById("kpiSPY").innerHTML = `<div class="l">SPY ${INDEX.SPY.price}</div><div class="v">${INDEX.SPY.gap>=0?"+":""}${INDEX.SPY.gap}%</div>`;
-  document.getElementById("kpiQQQ").innerHTML = `<div class="l">QQQ ${INDEX.QQQ.price}</div><div class="v">${INDEX.QQQ.gap>=0?"+":""}${INDEX.QQQ.gap}%</div>`;
+    `<b>${etDate}</b> · data <b style="color:${mode()==="LIVE"?"var(--ok)":mode()==="STALE"?"var(--orange)":"var(--bad)"}">${mode()}</b>`+
+    (mode()==="SIM"?" (drill data — connect the API on the Ops Console)":"")+`<br>`+
+    `verdict: <b style="color:var(--orange)">${v.verdict}</b> — ${v.reason}<br>`+
+    (acct? `equity $${acct.equity.toFixed(2)} · weekly DD ${acct.weeklyDDPct.toFixed(1)}% · ${acct.coolingDetail} · trades today ${acct.tradedToday}/1`
+         : `no account link — SIM equity $${(+eq).toFixed(0)}`);
+  const idx = indexData();
+  document.getElementById("kpiSPY").innerHTML = `<div class="l">SPY ${fm(idx.SPY&&idx.SPY.price)}</div><div class="v">${idx.SPY&&idx.SPY.gap!=null?(idx.SPY.gap>=0?"+":"")+idx.SPY.gap+"%":"—"}</div>`;
+  document.getElementById("kpiQQQ").innerHTML = `<div class="l">QQQ ${fm(idx.QQQ&&idx.QQQ.price)}</div><div class="v">${idx.QQQ&&idx.QQQ.gap!=null?(idx.QQQ.gap>=0?"+":"")+idx.QQQ.gap+"%":"—"}</div>`;
 }
 
+/* ========== CONTROLS ========== */
 document.getElementById("acctType").value=S.acct;
-document.getElementById("cool").value=S.cool?"1":"0";
-document.getElementById("wdd").value=S.wdd;
+document.getElementById("cool").value=S.forceCool?"force":"auto";
+document.getElementById("wdd").value=S.simWdd;
+document.getElementById("simEq").value=S.simEquity;
+document.getElementById("apiBase").value=S.apiBase;
+document.getElementById("apiToken").value=S.apiToken;
 document.getElementById("acctType").onchange=e=>{S.acct=e.target.value;save();renderSide();};
-document.getElementById("cool").onchange=e=>{S.cool=e.target.value==="1";save();renderSide();};
-document.getElementById("wdd").oninput=e=>{S.wdd=+e.target.value;save();renderSide();};
+document.getElementById("cool").onchange=e=>{S.forceCool=e.target.value==="force";save();renderAll();};
+document.getElementById("wdd").oninput=e=>{S.simWdd=+e.target.value;save();renderAll();};
+document.getElementById("simEq").oninput=e=>{S.simEquity=+e.target.value||START_EQUITY;save();renderAll();};
+document.getElementById("apiBase").onchange=e=>{S.apiBase=e.target.value.trim();save();refreshLive();};
+document.getElementById("apiToken").onchange=e=>{S.apiToken=e.target.value.trim();save();};
+document.getElementById("btnTestApi").onclick=()=>refreshLive();
 
 document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{
   navigator.clipboard.writeText(document.querySelector(b.dataset.copy).textContent);
@@ -1054,7 +1238,7 @@ document.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{
 
 /* ticker */
 document.getElementById("ticker").textContent =
-  "◆ GLADIATOR SCALP ONLINE ◆ SELECTIVITY IS THE EDGE ◆ SCORE = |GAP%| + OR RVOL ◆ MIN 2.0 ◆ TOP-1 ONLY ◆ ORB15 LONG ◆ STOP = OR LOW ◆ TARGET 1.5R ◆ FLAT 15:55 ET ◆ ONE TRADE / DAY ◆ HUMAN APPROVAL REQUIRED ◆ PAPER PA32F9675IY4 ◆ LIVE NEEDS DUAL CONFIRM ◆ n=40 BEFORE SCALE ◆ NEVER CHASE ◆ "+
+  "◆ GLADIATOR SCALP ONLINE ◆ LIVE DATA OR HONESTLY LABELED SIM ◆ EVERY GATE ENFORCED IN CODE ◆ SCORE = |GAP%| + OR RVOL ◆ MIN 2.0 ◆ TOP-1 ONLY ◆ SPREAD ≤ 0.2% ◆ ORB15 LONG ◆ TRIGGER = 5M CLOSE > OR-H & VWAP ◆ STOP = OR LOW ◆ STOP ≤ 3% ◆ TARGET 1.5R ◆ FLAT 15:55 ET ◆ ONE TRADE / DAY ◆ COOLING-OFF AFTER A LOSS ◆ HALT < $500 ◆ STAND DOWN AT 6% WEEKLY DD ◆ HUMAN APPROVAL REQUIRED ◆ n=5 IS INTERESTING · n=40 IS VALIDATION · 100+ IS EVIDENCE ◆ NEVER CHASE ◆ "+
   UNIVERSE_CORE.join(" · ")+" ◆";
 
 /* palette */
@@ -1083,7 +1267,10 @@ document.addEventListener("keydown", e=>{
 });
 
 /* ========== THREE NEURAL CORE ========== */
+/* eye candy only — if the CDN or WebGL fails, the desk must keep working */
 (function(){
+  try{
+  if(!window.THREE) throw new Error("three.js unavailable");
   const canvas=document.getElementById("tower");
   const renderer=new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio||1));
@@ -1177,6 +1364,10 @@ document.addEventListener("keydown", e=>{
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
+  }catch(e){
+    const c=document.getElementById("tower");
+    if(c) c.outerHTML = '<div style="height:220px;display:flex;align-items:center;justify-content:center;color:var(--dim);border:1px solid var(--line);border-radius:10px">3D core offline — use the lobe map or nav buttons</div>';
+  }
 })();
 
 /* boot */
@@ -1194,9 +1385,10 @@ document.addEventListener("keydown", e=>{
   document.querySelectorAll("nav.rail [data-go]").forEach(b=>b.addEventListener("click",()=>document.querySelector("nav.rail").classList.remove("open")));
 })();
 
-renderUniverse(); renderRank(); renderSide(); renderJournal(); renderPreview();
-document.getElementById("tEq").value=S.equity;
+renderAll(); renderJournal();
+document.getElementById("tEq").value=equity();
 if(location.hash){ const [v,tab]=location.hash.replace("#","").split("/"); if(v) goto(v,tab); }
+refreshLive();
 </script>
 </body>
 </html>
