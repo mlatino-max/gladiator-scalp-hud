@@ -35,12 +35,20 @@ module.exports = withGuard(async (req, res) => {
   const all = [...new Set([...symbols, ...INDEXES])];
   const dailyStart = new Date(Date.now() - 45 * 864e5).toISOString();
 
+  /* Intraday bars only exist once the session has started. Asking for a
+     09:30 start before 09:30 ET makes Alpaca reject the whole request
+     ("end should not be before start"), which used to 500 the scanner
+     every pre-market morning. */
+  const sessionStarted = etNowMin >= engine.RULES.orWindow.start;
+
   const [snaps, intraday, daily] = await Promise.all([
     alp(DATA_BASE, "/v2/stocks/snapshots", { symbols: all.join(","), feed: FEED }),
-    pagedBars("/v2/stocks/bars", {
-      symbols: symbols.join(","), timeframe: "5Min",
-      start: `${todayET}T09:30:00${off}`, feed: FEED, limit: 10000
-    }),
+    sessionStarted
+      ? pagedBars("/v2/stocks/bars", {
+          symbols: symbols.join(","), timeframe: "5Min",
+          start: `${todayET}T09:30:00${off}`, feed: FEED, limit: 10000
+        }).catch(() => ({}))
+      : Promise.resolve({}),
     pagedBars("/v2/stocks/bars", {
       symbols: all.join(","), timeframe: "1Day", start: dailyStart, feed: FEED, limit: 10000
     })
@@ -88,7 +96,7 @@ module.exports = withGuard(async (req, res) => {
 
   res.status(200).json({
     asOf: new Date().toISOString(),
-    etDate: todayET, etNowMin,
+    etDate: todayET, etNowMin, sessionStarted,
     clock: { is_open: clock.is_open, next_open: clock.next_open, next_close: clock.next_close },
     feed: FEED,
     rows, index
