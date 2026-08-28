@@ -17,7 +17,14 @@ module.exports = withGuard(async (req, res) => {
     fetchJournal(30)
   ]);
 
-  const equity = engine.num(acct.equity) || 0;
+  /* Validation doctrine: risk is sized off working capital, not whatever the
+     paper account happens to hold (default paper accounts start at $100k —
+     2% of that would be a $2,000 risk, not $15). Cap effective equity at
+     GLADIATOR_EQUITY_CAP (default $750); raise the env var only when the
+     ladder is earned (n≥40, PF≥1.3). */
+  const CAP = engine.num(process.env.GLADIATOR_EQUITY_CAP) || 750;
+  const realEquity = engine.num(acct.equity) || 0;
+  const equity = Math.min(realEquity, CAP);
 
   /* weekly drawdown: peak equity since Monday (ET) vs now */
   const times = hist.timestamp || [], eqs = hist.equity || [];
@@ -25,14 +32,17 @@ module.exports = withGuard(async (req, res) => {
   const dow = (nowD.getUTCDay() + 6) % 7; // Monday=0 (approximation is fine at daily granularity)
   const monday = new Date(nowD.getTime() - dow * 864e5);
   const mondayStr = engine.etDateStr(monday);
-  let peak = equity;
-  const week = [];
+  let peak = realEquity;
   for (let i = 0; i < times.length; i++) {
     const d = engine.etDateStr(times[i] * 1000);
     const v = engine.num(eqs[i]);
-    if (d >= mondayStr && v != null && v > 0) { week.push({ d, v }); if (v > peak) peak = v; }
+    if (d >= mondayStr && v != null && v > 0 && v > peak) peak = v;
   }
-  const weeklyDDPct = peak > 0 ? Math.max(0, engine.r2((peak - equity) / peak * 100)) : 0;
+  /* dollars given back this week, measured against working capital — on a
+     $100k paper account with $15 risk a pure %-of-account DD would never trip */
+  const ddDollars = Math.max(0, peak - realEquity);
+  const ddBase = Math.min(peak, CAP);
+  const weeklyDDPct = ddBase > 0 ? Math.max(0, engine.r2(ddDollars / ddBase * 100)) : 0;
 
   /* previous trading day from portfolio history */
   let prevTradingDay = null;
@@ -60,9 +70,12 @@ module.exports = withGuard(async (req, res) => {
     status: acct.status,
     currency: acct.currency,
     equity,
+    real_equity: engine.r2(realEquity),
+    equity_cap: CAP,
     cash: engine.num(acct.cash),
     buying_power: engine.num(acct.buying_power),
     weeklyDDPct,
+    weeklyDDDollars: engine.r2(ddDollars),
     weekPeakEquity: engine.r2(peak),
     prevTradingDay,
     prevDayR: prevDayTrades.length ? engine.r2(prevDayR) : null,

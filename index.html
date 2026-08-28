@@ -1210,7 +1210,7 @@ function renderSide(){
     `<b>${etDate}</b> · data <b style="color:${mode()==="LIVE"?"var(--ok)":mode()==="STALE"?"var(--orange)":"var(--bad)"}">${mode()}</b>`+
     (mode()==="SIM"?" (drill data — connect the API on the Ops Console)":"")+`<br>`+
     `verdict: <b style="color:var(--orange)">${v.verdict}</b> — ${v.reason}<br>`+
-    (acct? `equity $${acct.equity.toFixed(2)} · weekly DD ${acct.weeklyDDPct.toFixed(1)}% · ${acct.coolingDetail} · trades today ${acct.tradedToday}/1`
+    (acct? `equity $${acct.equity.toFixed(2)}${acct.real_equity>acct.equity?` <span style="color:var(--dim)">(working capital — account holds $${acct.real_equity.toFixed(0)}, capped by doctrine)</span>`:""} · weekly DD ${acct.weeklyDDPct.toFixed(1)}% · ${acct.coolingDetail} · trades today ${acct.tradedToday}/1`
          : `no account link — SIM equity $${(+eq).toFixed(0)}`);
   const idx = indexData();
   document.getElementById("kpiSPY").innerHTML = `<div class="l">SPY ${fm(idx.SPY&&idx.SPY.price)}</div><div class="v">${idx.SPY&&idx.SPY.gap!=null?(idx.SPY.gap>=0?"+":"")+idx.SPY.gap+"%":"—"}</div>`;
