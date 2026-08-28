@@ -367,7 +367,8 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
           <div class="kpi" id="kpiTop"><div class="l">TOP NAME</div><div class="v">—</div></div>
           <div class="kpi" id="kpiPlay"><div class="l">IN PLAY?</div><div class="v">NO</div></div>
         </div>
-        <div class="panel"><table id="rankTable"></table></div>
+        <div class="panel"><table id="rankTable"></table>
+          <p class="ticket-card" id="rankNote" style="margin:10px 0 0"></p></div>
       </div>
       <div data-pane="gates" class="hidden">
         <div class="panel" id="f2gates"></div>
@@ -940,15 +941,30 @@ function renderRank(){
   const play = v.verdict==="TRADE_ARMED" || v.verdict==="STAGED";
   document.getElementById("kpiPlay").className = "kpi "+(v.verdict==="TRADE_ARMED"?"ok": play?"warn":"bad");
   document.getElementById("kpiPlay").innerHTML = `<div class="l">IN PLAY?</div><div class="v">${v.verdict==="TRADE_ARMED"?"ARMED": v.verdict==="STAGED"?"STAGED":"NO"}</div>`;
+  const TIER_LBL = ["TRADEABLE","PENDING DATA","DISQUALIFIED"];
   document.getElementById("rankTable").innerHTML =
-    `<tr><th>#</th><th>SYM</th><th>SCORE</th><th>GAP</th><th>RVOL</th><th>WIDTH%</th><th>SPRD%</th><th>ADVANCE</th></tr>`+
+    `<tr><th>#</th><th>SYM</th><th>SCORE</th><th>RANK</th><th>GAP</th><th>RVOL</th><th>WIDTH%</th><th>SPRD%</th><th>ADVANCE</th></tr>`+
     list.map((r,i)=>{
       const el = E.rowEligible(r);
       const w = E.orWidthPct(r), sp = E.spreadPct(r);
-      return `<tr data-sym="${r.symbol}"><td>${i+1}</td><td>${r.symbol}</td><td>${E.score(r).toFixed(2)}</td>
+      const capped = r.rankScore < E.score(r) - 0.005;
+      const adv = r.tier===0
+        ? (i===0 ? '<span class="pill go">TOP-1</span>' : '<span class="pill go">READY</span>')
+        : r.tier===1
+          ? `<span class="pill mid" title="${el.fails.join(" · ")}">PENDING</span>`
+          : `<span class="pill no" title="${el.fails.join(" · ")}">VETO</span>`;
+      return `<tr data-sym="${r.symbol}" title="${TIER_LBL[r.tier]}${el.pass?"":" — "+el.fails.join(" · ")}">
+        <td>${i+1}</td><td>${r.symbol}</td><td>${E.score(r).toFixed(2)}</td>
+        <td${capped?' style="color:var(--dim)" title="capped for ranking — raw score is a halted-news outlier, not a better setup"':''}>${r.rankScore.toFixed(2)}${capped?"*":""}</td>
         <td>${fm(r.gap)}</td><td>${fm(r.rvol)}</td><td>${w==null?"—":w.toFixed(2)}</td><td>${sp==null?"—":sp.toFixed(3)}</td>
-        <td>${i===0 && el.pass?'<span class="pill go">TOP-1</span>': i===0?`<span class="pill no" title="${el.fails.join(" · ")}">VETO</span>`:'<span class="pill mid">WAIT</span>'}</td></tr>`;
+        <td>${adv}</td></tr>`;
     }).join("");
+  const elig = list.filter(r=>r.tier===0).length, pend = list.filter(r=>r.tier===1).length;
+  document.getElementById("rankNote").innerHTML =
+    `Ranked by tier, then by capped score (RANK column; <b>*</b> = capped). `+
+    `<b style="color:var(--ok)">${elig} tradeable</b> · <b style="color:var(--yellow)">${pend} pending data</b> · `+
+    `<b style="color:var(--bad)">${list.length-elig-pend} disqualified</b>. `+
+    `Untradeable names can no longer outrank a clean setup.`;
   document.getElementById("f2gates").innerHTML =
     `<h3 style='margin-top:0;font-family:var(--disp);letter-spacing:.14em;font-size:12px'>GATES — TOP-1 ${v.top??"—"}</h3>`+
     (v.ticket? gateHtml(v.ticket) : "no data");
