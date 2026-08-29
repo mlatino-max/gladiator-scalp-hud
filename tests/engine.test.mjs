@@ -188,3 +188,135 @@ test("regression: this morning's live top-5 no longer crowd out a real setup", (
   assert.equal(r[0].symbol, "SOFI", "the only tradeable name must be top-1");
   assert.ok(r.slice(1).every(x => x.tier === 2), "all four microcaps disqualified");
 });
+
+/* ---- journal: round trips reconstructed from real broker fills ----
+   Shapes mirror what /v2/orders?status=closed&nested=true actually returns.
+   The bug these guard: sells were only matched to buys on the SAME ET date,
+   so anything held overnight stayed "open" with r=null forever and never
+   counted toward n=40. */
+function buy(o) {
+  return Object.assign({
+    id: "b1", side: "buy", symbol: "CMG", status: "filled",
+    filled_at: "2026-08-27T13:45:00Z", filled_qty: "10", filled_avg_price: "52.00", legs: []
+  }, o);
+}
+function sell(o) {
+  return Object.assign({
+    id: "s1", side: "sell", symbol: "CMG", status: "filled",
+    filled_at: "2026-08-27T19:55:00Z", filled_qty: "10", filled_avg_price: "52.50", legs: []
+  }, o);
+}
+function stopLeg(o) {
+  return Object.assign({ id: "L-stop", type: "stop", stop_price: "51.00",
+    filled_at: null, filled_qty: "0", filled_avg_price: null }, o);
+}
+function tpLeg(o) {
+  return Object.assign({ id: "L-tp", type: "limit", limit_price: "53.50",
+    filled_at: null, filled_qty: "0", filled_avg_price: null }, o);
+}
+const one = (j, sym) => j.find(x => x.symbol === sym);
+
+test("bracket stop-out reproduces the real CMG round trip at -1.09R", () => {
+  const j = E.buildRoundTrips([buy({
+    legs: [tpLeg(), stopLeg({ filled_at: "2026-08-27T17:02:00Z", filled_qty: "10", filled_avg_price: "50.91" })]
+  })]);
+  assert.equal(j.length, 1);
+  assert.equal(j[0].reason, "stop");
+  assert.equal(j[0].entry, 52);
+  assert.equal(j[0].stop, 51);
+  assert.equal(j[0].target, 53.5);
+  assert.equal(j[0].exit, 50.91);
+  assert.equal(j[0].r, -1.09);
+  assert.equal(j[0].pnl, -10.9);
+  assert.equal(E.isTrade(j[0]), true);
+});
+
+test("a position held overnight closes and counts — the multi-day matching bug", () => {
+  // buy Tue, sell Thu: the old same-date matcher left this "open" with r=null
+  const j = E.buildRoundTrips([
+    buy({ id: "b-cde", symbol: "CDE", filled_at: "2026-08-25T14:00:00Z",
+      filled_qty: "40", filled_avg_price: "10.00",
+      legs: [stopLeg({ id: "L", stop_price: "9.50" })] }),
+    sell({ id: "s-cde", symbol: "CDE", filled_at: "2026-08-27T18:00:00Z",
+      filled_qty: "40", filled_avg_price: "10.75" })
+  ]);
+  const t = one(j, "CDE");
+  assert.equal(t.reason, "close", "cross-date exit is a closed trade, not 'open'");
+  assert.equal(t.date, "2026-08-25");
+  assert.equal(t.exitDate, "2026-08-27");
+  assert.equal(t.exit, 10.75);
+  assert.equal(t.r, 1.5);
+  assert.equal(E.isTrade(t), true, "it must count toward n");
+  assert.equal(E.journalStats(j, 750).n, 1);
+});
+
+test("same-day discretionary exit still reads as eod", () => {
+  const j = E.buildRoundTrips([
+    buy({ id: "b-spy", symbol: "SPY", filled_at: "2026-08-27T14:00:00Z",
+      filled_avg_price: "600.00", legs: [stopLeg({ id: "L", stop_price: "597.00" })] }),
+    sell({ id: "s-spy", symbol: "SPY", filled_at: "2026-08-27T19:50:00Z", filled_avg_price: "604.50" })
+  ]);
+  assert.equal(one(j, "SPY").reason, "eod");
+  assert.equal(one(j, "SPY").r, 1.5);
+});
+
+test("FIFO: one sell closes the oldest lot only, and is never counted twice", () => {
+  const j = E.buildRoundTrips([
+    buy({ id: "b-ko-1", symbol: "KO", filled_at: "2026-08-25T14:00:00Z",
+      filled_qty: "10", filled_avg_price: "60.00", legs: [stopLeg({ id: "L1", stop_price: "59.00" })] }),
+    buy({ id: "b-ko-2", symbol: "KO", filled_at: "2026-08-26T14:00:00Z",
+      filled_qty: "10", filled_avg_price: "62.00", legs: [stopLeg({ id: "L2", stop_price: "61.00" })] }),
+    sell({ id: "s-ko", symbol: "KO", filled_at: "2026-08-27T18:00:00Z",
+      filled_qty: "10", filled_avg_price: "63.00" })
+  ]);
+  const first = j.find(x => x.id === "b-ko-1");
+  const second = j.find(x => x.id === "b-ko-2");
+  assert.equal(first.reason, "close");
+  assert.equal(first.r, 3);                       // (63-60)/1
+  assert.equal(second.reason, "open", "the newer lot is still held");
+  assert.equal(second.r, null);
+  assert.equal(E.journalStats(j, 750).n, 1, "one sell cannot close two buys");
+});
+
+test("a partly closed lot reports no R until it is flat", () => {
+  const j = E.buildRoundTrips([
+    buy({ id: "b-p", symbol: "MARA", filled_qty: "48", filled_avg_price: "11.61",
+      legs: [stopLeg({ id: "L", stop_price: "11.30" })] }),
+    sell({ id: "s-p", symbol: "MARA", filled_qty: "20", filled_avg_price: "12.08" })
+  ]);
+  assert.equal(j[0].reason, "partial");
+  assert.equal(j[0].matchedQty, 20);
+  assert.equal(j[0].r, null);
+  assert.equal(E.isTrade(j[0]), false);
+  assert.equal(E.journalStats(j, 750).n, 0);
+});
+
+test("a bracket leg closes its own parent, not whichever lot is oldest", () => {
+  const j = E.buildRoundTrips([
+    buy({ id: "b-old", symbol: "AMD", filled_at: "2026-08-25T14:00:00Z",
+      filled_qty: "5", filled_avg_price: "100.00", legs: [] }),
+    buy({ id: "b-brk", symbol: "AMD", filled_at: "2026-08-26T14:00:00Z",
+      filled_qty: "5", filled_avg_price: "110.00",
+      legs: [stopLeg({ id: "L-b", stop_price: "108.00",
+        filled_at: "2026-08-26T17:00:00Z", filled_qty: "5", filled_avg_price: "107.90" })] })
+  ]);
+  assert.equal(j.find(x => x.id === "b-brk").reason, "stop");
+  assert.equal(j.find(x => x.id === "b-old").reason, "open", "the untouched lot stays open");
+});
+
+test("an unsold position stays open and never fakes an R", () => {
+  const j = E.buildRoundTrips([buy({ id: "b-open", legs: [stopLeg()] })]);
+  assert.equal(j[0].reason, "open");
+  assert.equal(j[0].exit, null);
+  assert.equal(j[0].r, null);
+  assert.equal(E.journalStats(j, 750).n, 0);
+});
+
+test("journal comes back newest first and ignores unfilled orders", () => {
+  const j = E.buildRoundTrips([
+    buy({ id: "b-a", symbol: "AAL", filled_at: "2026-08-25T14:00:00Z" }),
+    buy({ id: "b-b", symbol: "NIO", filled_at: "2026-08-27T14:00:00Z" }),
+    buy({ id: "b-dead", symbol: "F", status: "canceled", filled_at: null, filled_qty: "0" })
+  ]);
+  assert.deepEqual(j.map(x => x.id), ["b-b", "b-a"]);
+});
