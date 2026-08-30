@@ -1,0 +1,25 @@
+# The rule engine decides every gate, every size, and the go-live verdict.
+# If it regresses, the HUD lies quietly rather than failing loudly — so the
+# suite runs on every push and every pull request, not just locally.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      # No dependencies and no lockfile — node:test is in the runtime.
+      # Nothing to install, so there is no `npm ci` step to go stale.
+      - run: npm test

@@ -1,0 +1,10 @@
+{
+  "name": "gladiator-scalp-hud",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GLADIATOR SCALP command HUD — static desk + read-only Alpaca proxies",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --test"
+  }
+}

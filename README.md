@@ -80,8 +80,11 @@ Two things the gate refuses to accept as evidence:
 ## Tests
 
 ```
-node --test tests/engine.test.mjs
+npm test          # node --test — no dependencies, nothing to install
 ```
 
 Covers every gate (pass and block), OR/VWAP/RVOL derivations from bars,
-journal R math, evidence tiers, and the go-live gate.
+journal R math, evidence tiers, and the go-live gate — including that typed
+rows and unreviewed trades cannot clear it. GitHub Actions runs the same
+command on Node 20 and 22 for every push to `main` and every pull request
+(`.github/workflows/test.yml`).
