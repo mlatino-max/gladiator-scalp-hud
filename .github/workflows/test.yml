@@ -1,0 +1,28 @@
+# The rule engine decides every gate, every size, and the go-live verdict.
+# If it regresses, the HUD lies quietly rather than failing loudly — so the
+# suite runs on every push and every pull request, not just locally.
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["20", "22"]
+    steps:
+      # v4 still runs, but targets the Node 20 action runtime GitHub is
+      # deprecating — v5+ moved to node24, so the first run warned. The v7
+      # fork-checkout change is scoped to pull_request_target / workflow_run.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node }}
+      # No dependencies and no lockfile — node:test is in the runtime.
+      # Nothing to install, so there is no `npm ci` step to go stale.
+      - run: npm test
