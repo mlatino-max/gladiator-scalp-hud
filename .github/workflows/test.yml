@@ -16,8 +16,11 @@ jobs:
       matrix:
         node: ["20", "22"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # v4 still runs, but targets the Node 20 action runtime GitHub is
+      # deprecating — v5+ moved to node24, so the first run warned. The v7
+      # fork-checkout change is scoped to pull_request_target / workflow_run.
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
       # No dependencies and no lockfile — node:test is in the runtime.
