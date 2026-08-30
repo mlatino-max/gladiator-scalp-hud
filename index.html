@@ -500,6 +500,7 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
             <button class="btn" id="btnSyncJournal">SYNC FROM ALPACA</button>
             <span class="ticket-card" id="journalSync">Not synced yet.</span>
           </div>
+          <div id="reviewNotice" style="display:none"></div>
           <p class="ticket-card" style="margin-top:0">Fills, stops, targets, exits and R are reconstructed from what actually happened at the broker — never typed. Click the PLAN cell of a row to flag a protocol breach. The manual form below is for no-trade observations and SIM drills only — hand-typed rows are listed, but never counted toward n, PF, drawdown or the go-live gate.</p>
           <table id="jTable" style="margin-bottom:12px"></table>
           <div class="grid g3">
@@ -712,11 +713,13 @@ function loadState(){
       notes: raw.notes ?? {},
       simRows: (raw.simRows && raw.simRows.length) ? raw.simRows : structuredClone(SIM_QUOTES),
       inBandOnly: raw.inBandOnly ?? false,
+      reviewNoticeSeen: raw.reviewNoticeSeen ?? false,
       ticket: raw.ticket ?? null
     };
   }catch(e){
     return {apiBase:"",apiToken:"",simEquity:START_EQUITY,simCool:false,forceCool:false,simWdd:0,acct:"cash",
-      manualJournal:[],alpacaJournal:[],journalAsOf:null,notes:{},simRows:structuredClone(SIM_QUOTES),inBandOnly:false,ticket:null};
+      manualJournal:[],alpacaJournal:[],journalAsOf:null,notes:{},simRows:structuredClone(SIM_QUOTES),inBandOnly:false,
+      reviewNoticeSeen:false,ticket:null};
   }
 }
 function save(){ localStorage.setItem(STORE, JSON.stringify(S)); }
@@ -1112,8 +1115,37 @@ function planPill(j){
     : st==="yes" ? '<span class="pill go">YES</span>'
     : '<span class="pill mid">UNREVIEWED</span>';
 }
+/* UNREVIEWED is the correct reading of "nobody recorded a review", but on the
+   first load after the tri-state change it looks like every row broke at once.
+   Say plainly what it means and how to clear it — the gate itself is unmoved. */
+function renderReviewNotice(list){
+  const el = document.getElementById("reviewNotice");
+  if(!el) return;
+  const broker = list.filter(E.isBrokerTrade);
+  const unreviewed = broker.filter(j=>E.planState(j)==="unknown").length;
+  const inWindow = broker.slice(0, E.RULES.validation.cleanLast).filter(j=>E.planState(j)==="unknown").length;
+  if(!unreviewed || S.reviewNoticeSeen){ el.style.display="none"; el.innerHTML=""; return; }
+  el.style.display="";
+  el.className = "panel gold";
+  el.innerHTML =
+    `<div class="ticket-card" style="margin:0">`+
+    `<b style="color:var(--yellow)">${unreviewed} trade${unreviewed>1?"s":""} marked UNREVIEWED — expected, not a fault.</b><br>`+
+    `The followed-plan flag has three states (YES / BREACH / UNREVIEWED) and lives in this browser. `+
+    `A trade you never clicked — logged before this change, or reviewed on another machine — reads UNREVIEWED, `+
+    `because "nobody recorded a review" is not the same as "clean".<br>`+
+    (inWindow
+      ? `<b style="color:var(--orange)">${inWindow} of them sit in the last ${E.RULES.validation.cleanLast}</b>, so the go-live gate is held until each is reviewed. `
+      : `None are inside the last ${E.RULES.validation.cleanLast}, so the go-live gate is not held by this. `)+
+    `Click a PLAN cell to cycle it: UNREVIEWED → YES → BREACH.`+
+    `<div class="row" style="margin-top:8px"><button class="btn ghost" id="btnReviewNoticeSeen">GOT IT</button></div>`+
+    `</div>`;
+  document.getElementById("btnReviewNoticeSeen").onclick = ()=>{
+    S.reviewNoticeSeen = true; save(); renderReviewNotice(mergedJournal());
+  };
+}
 function renderJournal(){
   const list = mergedJournal();
+  renderReviewNotice(list);
   document.getElementById("jTable").innerHTML =
     `<tr><th>DATE</th><th>SYM</th><th>SRC</th><th>ENTRY</th><th>EXIT</th><th>R</th><th>REASON</th><th>PLAN</th></tr>`+
     (list.length? list.map((j,i)=>`<tr>
