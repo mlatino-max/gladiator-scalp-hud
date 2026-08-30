@@ -98,7 +98,8 @@ test("rvol estimate pro-rates the session", () => {
 });
 
 test("journal stats and evidence tiers", () => {
-  const mkT = (r, plan) => ({ date: "2026-08-01", symbol: "X", r, reason: r > 0 ? "target" : "stop", plan: plan || "yes" });
+  // src:"alpaca" — only broker-reconstructed round trips move the gate
+  const mkT = (r, plan) => ({ src: "alpaca", date: "2026-08-01", symbol: "X", r, reason: r > 0 ? "target" : "stop", plan: plan || "yes" });
   const j5 = [mkT(1.5), mkT(1.5), mkT(-1), mkT(1.5), mkT(-1)];
   const s5 = E.journalStats(j5, 750);
   assert.equal(s5.n, 5);
@@ -114,7 +115,63 @@ test("journal stats and evidence tiers", () => {
   assert.equal(breach.goLive, false);
   assert.equal(E.evidenceTier(120).tier, "EVIDENCE");
   // no_trade rows never count toward n
-  assert.equal(E.journalStats([{ date: "d", reason: "no_trade", r: null }], 750).n, 0);
+  assert.equal(E.journalStats([{ src: "alpaca", date: "d", reason: "no_trade", r: null }], 750).n, 0);
+});
+
+test("hand-typed rows can never advance the validation gate", () => {
+  const typed = (i) => ({
+    id: "m" + i, src: "manual", date: "2026-08-01", symbol: "FAKE",
+    entry: 10, stop: 9, exit: 10.5, r: 0.5, reason: "target", plan: "yes"
+  });
+  // forty perfect typed trades: the exact shape the manual journal form produces
+  const forty = Array.from({ length: 40 }, (_, i) => typed(i));
+  const st = E.journalStats(forty, 750);
+  assert.equal(st.n, 0, "typed rows do not count toward n");
+  assert.equal(st.manualExcluded, 40, "and the lab must say how many it dropped");
+  assert.equal(st.goLive, false, "typing cannot clear the go-live gate");
+  assert.equal(E.isTrade(typed(0)), true, "still a trade for display purposes");
+  assert.equal(E.isBrokerTrade(typed(0)), false, "but not a broker trade");
+
+  // mixing them in must not pad a real journal either
+  const broker = Array.from({ length: 5 }, () => ({
+    src: "alpaca", date: "2026-08-01", symbol: "SOXL", r: 1.5, reason: "target", plan: "yes"
+  }));
+  const mixed = E.journalStats([...forty, ...broker], 750);
+  assert.equal(mixed.n, 5, "n counts the fills, not the typing");
+  assert.equal(mixed.manualExcluded, 40);
+});
+
+test("an unreviewed trade is not a clean one — the cache-clear hole", () => {
+  const mk = (plan) => ({ src: "alpaca", date: "2026-08-01", symbol: "X", r: 1.5, reason: "target", plan });
+  assert.equal(E.planState(mk("yes")), "yes");
+  assert.equal(E.planState(mk("no")), "no");
+  assert.equal(E.planState(mk(null)), "unknown", "no recorded flag is unknown, not clean");
+  assert.equal(E.planState(mk(undefined)), "unknown");
+  assert.equal(E.planState(undefined), "unknown");
+
+  // forty passing trades that nobody has reviewed: the state a fresh browser
+  // (or a cleared cache) produces, since the flags only live in localStorage
+  const unreviewed = Array.from({ length: 40 }, () => mk(null));
+  const su = E.journalStats(unreviewed, 750);
+  assert.equal(su.n, 40);
+  assert.equal(su.unreviewedLast20, E.RULES.validation.cleanLast);
+  assert.equal(su.goLive, false, "unreviewed trades must not certify the gate");
+
+  // the same trades, actually reviewed and clean, do pass
+  const reviewed = Array.from({ length: 40 }, () => mk("yes"));
+  const sr = E.journalStats(reviewed, 750);
+  assert.equal(sr.unreviewedLast20, 0);
+  assert.equal(sr.goLive, true, "reviewed and clean still clears the gate");
+
+  // one unreviewed row inside the clean-last-20 window is enough to block
+  const oneBlank = [mk(null), ...Array.from({ length: 39 }, () => mk("yes"))];
+  assert.equal(E.journalStats(oneBlank, 750).unreviewedLast20, 1);
+  assert.equal(E.journalStats(oneBlank, 750).goLive, false);
+
+  // ...but outside the window it does not
+  const oldBlank = [...Array.from({ length: 39 }, () => mk("yes")), mk(null)];
+  assert.equal(E.journalStats(oldBlank, 750).unreviewedLast20, 0);
+  assert.equal(E.journalStats(oldBlank, 750).goLive, true);
 });
 
 test("tradeR", () => {

@@ -62,9 +62,20 @@ says so loudly in red, and unlocks the drill-editing cells.
 
 n=5 is interesting. n=40 is validation. 100+ across different market regimes
 starts becoming evidence. The go-live gate (n≥40, PF≥1.3, avg≥+0.15R,
-maxDD<10%, zero breaches in the last 20) is computed from the broker-synced
-journal — the lab reports **NOT MET — stay paper** until the data says
-otherwise.
+maxDD<10%, every one of the last 20 reviewed with zero breaches) is computed
+from **broker fills only** — the lab reports **NOT MET — stay paper** until the
+data says otherwise.
+
+Two things the gate refuses to accept as evidence:
+
+- **Hand-typed rows.** The manual journal form is for no-trade observations and
+  SIM drills. Those rows are listed and exported, but `journalStats` counts only
+  `src: "alpaca"` round trips, and the lab prints how many it dropped. Forty
+  typed trades move n by zero.
+- **Unreviewed trades.** The followed-plan flag is tri-state — `yes`, `no`, or
+  UNREVIEWED — and it lives in browser storage. An unreviewed trade is not a
+  clean one, so any unreviewed row inside the last 20 blocks go-live. Otherwise
+  clearing site data would silently reset every breach and flip the gate to MET.
 
 ## Tests
 

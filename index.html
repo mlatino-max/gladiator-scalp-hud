@@ -500,7 +500,7 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
             <button class="btn" id="btnSyncJournal">SYNC FROM ALPACA</button>
             <span class="ticket-card" id="journalSync">Not synced yet.</span>
           </div>
-          <p class="ticket-card" style="margin-top:0">Fills, stops, targets, exits and R are reconstructed from what actually happened at the broker — never typed. Click the PLAN cell of a row to flag a protocol breach. The manual form below is for no-trade observations and SIM drills only.</p>
+          <p class="ticket-card" style="margin-top:0">Fills, stops, targets, exits and R are reconstructed from what actually happened at the broker — never typed. Click the PLAN cell of a row to flag a protocol breach. The manual form below is for no-trade observations and SIM drills only — hand-typed rows are listed, but never counted toward n, PF, drawdown or the go-live gate.</p>
           <table id="jTable" style="margin-bottom:12px"></table>
           <div class="grid g3">
             <div><label>DATE</label><input id="jDate" /></div>
@@ -1098,10 +1098,19 @@ document.getElementById("jDate").value = new Date().toISOString().slice(0,10);
 function mergedJournal(){
   const auto=(S.alpacaJournal||[]).map(e=>({
     ...e,
-    plan: (S.notes[e.id] && S.notes[e.id].plan) || "yes",
+    /* no recorded review is UNREVIEWED — never an assumed "yes". These
+       flags live in localStorage, so defaulting them to clean meant a
+       cache clear could flip the go-live gate to MET. */
+    plan: (S.notes[e.id] && S.notes[e.id].plan) || null,
     note: (S.notes[e.id] && S.notes[e.id].note) || ""
   }));
   return [...auto, ...S.manualJournal].sort((a,b)=> a.date<b.date?1:(a.date>b.date?-1:0));
+}
+function planPill(j){
+  const st = E.planState(j);
+  return st==="no" ? '<span class="pill no">BREACH</span>'
+    : st==="yes" ? '<span class="pill go">YES</span>'
+    : '<span class="pill mid">UNREVIEWED</span>';
 }
 function renderJournal(){
   const list = mergedJournal();
@@ -1113,19 +1122,19 @@ function renderJournal(){
       <td>${fm(j.entry)}</td><td>${fm(j.exit)}</td>
       <td style="color:${(+j.r||0)>0?'var(--ok)':(+j.r||0)<0?'var(--bad)':'var(--dim)'}">${j.r==null?"—":(+j.r).toFixed(2)}</td>
       <td>${j.reason||"—"}</td>
-      <td data-plan="${j.id||i}" data-src="${j.src||"manual"}" style="cursor:pointer" title="click to toggle followed-plan">${j.plan==="no"?'<span class="pill no">BREACH</span>':'<span class="pill go">YES</span>'}</td>
+      <td data-plan="${j.id||i}" data-src="${j.src||"manual"}" style="cursor:pointer" title="click to cycle: unreviewed → followed → breach">${planPill(j)}</td>
     </tr>`).join("") : `<tr><td colspan="8">No fills yet — an empty journal is honest. SYNC pulls the truth from the broker.</td></tr>`);
   renderN40(); drawEq();
 }
 document.getElementById("jTable").addEventListener("click", e=>{
   const td=e.target.closest("td[data-plan]"); if(!td) return;
   const id=td.dataset.plan;
+  const NEXT={unknown:"yes", yes:"no", no:null};   // unreviewed → followed → breach → unreviewed
   if(td.dataset.src==="alpaca"){
-    const cur=(S.notes[id]&&S.notes[id].plan)||"yes";
-    S.notes[id]={...(S.notes[id]||{}), plan: cur==="yes"?"no":"yes"};
+    S.notes[id]={...(S.notes[id]||{}), plan: NEXT[E.planState(S.notes[id])]};
   } else {
     const m=S.manualJournal.find(x=>String(x.id)===id) || S.manualJournal[+id];
-    if(m) m.plan = m.plan==="no"?"yes":"no";
+    if(m) m.plan = NEXT[E.planState(m)];
   }
   save(); renderJournal();
 });
@@ -1148,7 +1157,7 @@ document.getElementById("btnJournal").onclick=()=>{
 };
 document.getElementById("btnCsv").onclick=()=>{
   const head="date,symbol,src,qty,entry,stop,target,exit,r_result,reason,followed_plan,note\n";
-  const body=mergedJournal().map(j=>[j.date,j.symbol,j.src,j.qty??"",j.entry??"",j.stop??"",j.target??"",j.exit??"",j.r??"",j.reason??"",j.plan??"",JSON.stringify(j.note||"")].join(",")).join("\n");
+  const body=mergedJournal().map(j=>[j.date,j.symbol,j.src,j.qty??"",j.entry??"",j.stop??"",j.target??"",j.exit??"",j.r??"",j.reason??"",E.planState(j),JSON.stringify(j.note||"")].join(",")).join("\n");
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([head+body],{type:"text/csv"}));
   a.download="journal.csv"; a.click();
 };
@@ -1164,8 +1173,11 @@ function renderN40(){
   const v=E.RULES.validation;
   document.getElementById("nStats").innerHTML =
     `PF ${isFinite(st.pf)?st.pf.toFixed(2):"∞"} · avg ${st.avgR.toFixed(3)}R · win ${(st.winRate*100).toFixed(0)}% · maxDD ${st.maxDDPct.toFixed(1)}% · breaches ${st.breaches} (${st.breachesLast20} in last 20)<br>`+
-    `${st.tier.note}<br>`+
-    `GO-LIVE GATE: n≥${v.minTrades} · PF≥${v.minPF} · avg≥+${v.minAvgR}R · maxDD&lt;${v.maxDDPct}% · 0 breaches in last ${v.cleanLast} → `+
+    `Counted: broker fills only.`+
+    (st.manualExcluded?` <b style="color:var(--orange)">${st.manualExcluded} hand-typed row${st.manualExcluded>1?"s":""} excluded</b> — typing a trade cannot advance the gate.`:``)+
+    (st.unreviewedLast20?` <b style="color:var(--yellow)">${st.unreviewedLast20} of the last ${v.cleanLast} unreviewed</b> — click each PLAN cell; unreviewed is not clean.`:``)+
+    `<br>${st.tier.note}<br>`+
+    `GO-LIVE GATE: n≥${v.minTrades} · PF≥${v.minPF} · avg≥+${v.minAvgR}R · maxDD&lt;${v.maxDDPct}% · last ${v.cleanLast} all reviewed, 0 breaches → `+
     (st.goLive?`<b style="color:var(--ok)">MET — discuss going live</b>`:`<b style="color:var(--orange)">NOT MET — stay paper</b>`);
 }
 function drawSweep(){
