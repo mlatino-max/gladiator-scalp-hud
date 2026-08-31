@@ -57,7 +57,7 @@ module.exports = withGuard(async (req, res) => {
   function buildRow(sym) {
     const snap = snaps[sym] || {};
     const dayBar = snap.dailyBar && engine.etDateStr(snap.dailyBar.t) === todayET ? snap.dailyBar : null;
-    const prevClose = snap.prevDailyBar ? engine.num(snap.prevDailyBar.c) : null;
+    const prevClose = engine.prevSessionClose(snap, todayET);
     const last = (snap.latestTrade && engine.num(snap.latestTrade.p)) || (dayBar && engine.num(dayBar.c)) || prevClose;
     const bid = snap.latestQuote ? engine.num(snap.latestQuote.bp) : null;
     const ask = snap.latestQuote ? engine.num(snap.latestQuote.ap) : null;

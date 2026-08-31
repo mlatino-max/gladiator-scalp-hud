@@ -377,3 +377,48 @@ test("journal comes back newest first and ignores unfilled orders", () => {
   ]);
   assert.deepEqual(j.map(x => x.id), ["b-b", "b-a"]);
 });
+
+/* ---- pre-market gap reference ----
+   Alpaca's snapshot: dailyBar = latest session, prevDailyBar = the one before.
+   Intraday dailyBar is today, so prevDailyBar is the previous close. But
+   pre-market today's bar does not exist yet, so dailyBar IS the previous
+   close — reading prevDailyBar then measures the gap from two sessions ago.
+   Live on 2026-08-31 09:15 ET this reported MARA at -9.27% when it was
+   +0.94%, and SOXL at -9.91% when it was -0.19%. */
+test("prevSessionClose uses the last completed session, pre-market included", () => {
+  const mondayET = "2026-08-31";
+  // pre-market Monday: dailyBar is Friday, prevDailyBar is Thursday
+  const pre = {
+    dailyBar: { c: 10.66, t: "2026-08-28T04:00:00Z" },
+    prevDailyBar: { c: 11.86, t: "2026-08-27T04:00:00Z" }
+  };
+  assert.equal(E.prevSessionClose(pre, mondayET), 10.66, "Friday's close, not Thursday's");
+
+  // intraday Monday: dailyBar is today, so the previous close is prevDailyBar
+  const intra = {
+    dailyBar: { c: 10.80, t: "2026-08-31T04:00:00Z" },
+    prevDailyBar: { c: 10.66, t: "2026-08-28T04:00:00Z" }
+  };
+  assert.equal(E.prevSessionClose(intra, mondayET), 10.66, "Friday's close intraday too");
+
+  // the gap it produces is the real one
+  const last = 10.76;
+  const gapPre = E.r2((last - E.prevSessionClose(pre, mondayET)) / E.prevSessionClose(pre, mondayET) * 100);
+  assert.equal(gapPre, 0.94, "MARA was flat, not down 9%");
+
+  // degenerate shapes must not throw
+  assert.equal(E.prevSessionClose({ prevDailyBar: { c: 5, t: "2026-08-27T04:00:00Z" } }, mondayET), 5);
+  assert.equal(E.prevSessionClose({}, mondayET), null);
+  assert.equal(E.prevSessionClose(null, mondayET), null);
+});
+
+test("a flat pre-market name does not fake its way into the sweep", () => {
+  // MARA at Monday 09:15: unchanged from Friday, no OR yet, no real gap
+  const maraPre = { symbol: "MARA", price: 10.76, gap: 0.94, rvol: null,
+    orh: null, orl: null, orReady: false, bid: 10.76, ask: 10.77 };
+  assert.ok(E.score(maraPre) < E.RULES.minScore, "score 0.94 is below the 2.0 floor");
+  assert.equal(E.rankTier(maraPre), 2, "below the score floor = disqualified, not surfaced");
+  // and with the old phantom gap it would have looked like a live candidate
+  const phantom = Object.assign({}, maraPre, { gap: -9.27 });
+  assert.ok(E.score(phantom) > E.RULES.minScore, "the bug made a flat name score 9.27");
+});
