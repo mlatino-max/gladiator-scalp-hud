@@ -412,6 +412,27 @@ test("prevSessionClose uses the last completed session, pre-market included", ()
   assert.equal(E.prevSessionClose(null, mondayET), null);
 });
 
+test("isSessionDate is the one answer to which session a bar belongs to", () => {
+  const todayET = "2026-08-31";
+  assert.equal(E.isSessionDate({ c: 10.8, t: "2026-08-31T04:00:00Z" }, todayET), true);
+  assert.equal(E.isSessionDate({ c: 10.8, t: "2026-08-28T04:00:00Z" }, todayET), false);
+  // a bar with no timestamp must not be promoted to today: etDateStr(undefined)
+  // falls back to the current date, which would have said "yes"
+  assert.equal(E.isSessionDate({ c: 10.8 }, todayET), false, "no timestamp is not today");
+  assert.equal(E.isSessionDate(null, todayET), false);
+  assert.equal(E.isSessionDate(undefined, todayET), false);
+});
+
+test("prevSessionClose has no reference when nothing precedes today", () => {
+  const todayET = "2026-08-31";
+  // today's bar exists but there is no session before it in the snapshot
+  assert.equal(E.prevSessionClose({ dailyBar: { c: 10.80, t: "2026-08-31T04:00:00Z" } }, todayET), null);
+  // the row is NOT dropped for that — price still resolves from the day bar —
+  // so it goes on scoring, on RVOL alone, with no gap term
+  assert.equal(E.score({ gap: null, rvol: 1.1 }), 1.1, "no gap reference means RVOL carries the score");
+  assert.equal(E.score({ gap: null, rvol: null }), 0);
+});
+
 test("a flat pre-market name does not fake its way into the sweep", () => {
   // MARA at Monday 09:15: unchanged from Friday, no OR yet, no real gap
   const maraPre = { symbol: "MARA", price: 10.76, gap: 0.94, rvol: null,
