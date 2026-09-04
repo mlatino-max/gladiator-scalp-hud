@@ -1,0 +1,15 @@
+{
+  "generatedAt": "2026-09-04T02:58:50.423Z",
+  "repo": "mlatino-max/gladiator",
+  "ref": "master",
+  "allowlist": [
+    "TradeCenter",
+    "Projects/Trading",
+    "Journal/Daily",
+    "Graphify/CLAUDE CODE"
+  ],
+  "notes": [],
+  "tickets": [],
+  "skipped": 0,
+  "source": "no-token"
+}

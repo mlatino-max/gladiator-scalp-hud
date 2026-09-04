@@ -1,90 +1,81 @@
-# GLADIATOR SCALP // COMMAND HUD
+# GLADIATOR SCALP // COMMAND HUD v2
 
-Four-floor trading command deck for the $750 ORB15-long paper-validation campaign.
-**The HUD observes and gates. It never places an order.** The human runs
+Four-floor trading command deck **plus the evidence dashboard**, one Next.js
+app, one rule engine. Spec: `SPEC.md` in the GLADIATOR vault.
+
+**The HUD observes and gates. It never places an order.** There is no order
+route in this deployment and none may be added. The human runs
 `executor.py --approve` — that boundary is the whole point of the system.
 
 ## Architecture — one source of truth
 
 ```
-Alpaca (paper)  ──►  api/scan.js     ─┐
-  keys live only     api/account.js  ─┼──►  lib/engine.js  ──►  index.html
-  in Vercel env      api/journal.js  ─┘     (shared rules)      (render only)
+Alpaca (paper) ──► lib/alpaca.js ──► lib/services.js ──► app/api/*   (read-only route handlers)
+                                        │                    │
+                                   lib/engine.js ◄───────────┘        (every gate, size, breach, stat)
+                                        │
+   Vercel KV ◄──── lib/store.js ◄── crons: regime-snapshot 14:40 UTC · journal-sync 21:15 UTC
+   vault repo ──► scripts/fetch-vault.mjs (build) ──► content/vault/index.json ──► /playbook, /journal/[date]
 ```
 
-- **`lib/engine.js`** — every gate, score, sizing rule, and journal statistic
-  lives here, once. The browser loads it as a script; the serverless functions
-  `require()` the same file. The scanner, the ticket, the sidebar gate tree,
-  and the lab all call the same functions, so their numbers cannot disagree.
-- **`api/scan.js`** — universe rows with real numbers: last trade, prev close,
-  gap%, RVOL estimate, 09:30–09:45 opening range, session VWAP, last completed
-  5-min close, NBBO bid/ask spread. Core 15 names + Alpaca screener movers.
-- **`api/account.js`** — live equity, weekly drawdown from portfolio history,
-  cooling-off derived from the previous session's actual results, and today's
-  buy-order count for the one-trade-per-day gate.
-- **`api/journal.js`** — the journal is reconstructed from closed orders and
-  bracket legs at the broker: entry fill, stop leg, target leg, exit, reason
-  (target / stop / eod), and R. Nothing is typed by hand except the
-  followed-plan flag and notes.
+- **`lib/engine.js`** — gates, ranking, sizing, FIFO round-trip reconstruction,
+  **breach detection** (`NO_STOP`, `MANUAL_EXIT`, `SECOND_TRADE`,
+  `OUTSIDE_WINDOW`, `OVERSIZED`, `HELD_OVERNIGHT`), the five-tile
+  `evidenceStats`, regime classification. Pure. Required by the server,
+  bundled for the browser. A rule changes here once.
+- **`app/api/*`** — `scan`, `account`, `journal`, `evidence`, `ops` (GET-only,
+  token via `x-hud-token` header or the httpOnly cookie set by `POST /api/session`),
+  two cron routes guarded by `CRON_SECRET`.
+- **Data states**: `LIVE`, `STALE`, `ERROR`. There is no SIM data path. A
+  failed fetch renders an explicit error panel with the endpoint, status and
+  last-good time; no number is ever painted from fallback data.
 
-All three endpoints are **read-only proxies**. There is no order route
-anywhere in this deployment, and the Alpaca keys never reach the browser.
+## Routes
 
-## Enforced gates (all of them, in code)
+`/` deck · `/floor/1..4` · `/evidence` gate scoreboard + equity/DD curve ·
+`/evidence/trades` every round trip, excluded rows greyed with reason,
+drill-down drawer with fills, FIFO match and the hand-check formula ·
+`/evidence/regime` results by regime + first-blocking-gate on no-trade days ·
+`/journal/[date]` daily note + fills + ticket · `/lab` · `/playbook` · `/ops`.
+Keys `0-4 e j r a p o`, `Ctrl+K` palette.
 
-Structural: price $3–$100 · score ≥ 2.0 · spread ≤ 0.2% (fails closed with no
-NBBO) · OR captured after 09:45 · stop ≤ 3% of entry · top-1 ranked only.
-Risk: equity ≥ $500 · weekly DD ≤ 6% · cooling-off after a losing session ·
-one trade per day · entry window 09:45–15:30 ET · sizeable ≥ 1 share at 2% risk.
-Trigger (arms the ticket, on live bars): **5-min close > OR-high AND > VWAP.**
+## Deploy (Vercel)
 
-A ticket is `NO TRADE` until every blocking gate passes, `STAGED` while
-waiting on the trigger, and `ARMED` only when the trigger confirms — and even
-armed, it still needs the human `--approve`.
+Env vars (names differ from the Render MCP host — see the ops runbook):
 
-## Deploy
+| var | purpose |
+|---|---|
+| `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` | **paper** keys |
+| `HUD_ACCESS_TOKEN` | required on `/api/*`; enter once on `/ops` → httpOnly cookie |
+| `CRON_SECRET` | Vercel sends it as `Authorization: Bearer` to the cron routes |
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV (Upstash REST). Without them the store is in-memory and `/ops` says so |
+| `ALERT_PUSH_URL` (+ `ALERT_PUSH_TOKEN`) | ntfy-style push endpoint for TRADE_ARMED / gate flips / tier changes / cron failures |
+| `GITHUB_VAULT_TOKEN` | read-only token for the vault repo, used at build only |
+| `VAULT_REPO`, `VAULT_REF`, `VAULT_ALLOWLIST` | default `mlatino-max/gladiator`, `master`, `TradeCenter,Projects/Trading,Journal/Daily,Graphify/CLAUDE CODE` |
+| `GLADIATOR_EQUITY_CAP` | default 750 |
 
-1. Push this repo to Vercel (static + `api/` functions, no build step).
-2. Set env vars in the Vercel project:
-   - `ALPACA_API_KEY_ID` / `ALPACA_API_SECRET_KEY` — **paper** keys
-   - `ALPACA_DATA_FEED` — optional, default `iex` (free tier)
-   - `ALPACA_TRADING_BASE` — optional, default `https://paper-api.alpaca.markets`
-   - `HUD_ACCESS_TOKEN` — optional; if set, the HUD must send it
-     (Ops Console → API TOKEN) or every endpoint returns 401. Set this —
-     the account endpoint exposes equity to anyone with the URL otherwise.
-3. Open the deployment. The DATA chip goes **LIVE** green.
+Turn on **Vercel Authentication** (deployment protection) for production and
+previews. Cron jobs bypass it; browsers do not.
 
-Opening `index.html` from disk also works: paste the deployment URL into
-Ops Console → API BASE URL. With no API at all the HUD runs on **SIM** data,
-says so loudly in red, and unlocks the drill-editing cells.
+Vault notes ship only if they sit in an allowlisted folder **and** carry
+`publish: true` in frontmatter. The build fails on a guarded confidential
+name or anything that looks like a credential. Add a deploy hook to the
+vault repo so a push rebuilds the site.
 
 ## Evidence discipline
 
-n=5 is interesting. n=40 is validation. 100+ across different market regimes
-starts becoming evidence. The go-live gate (n≥40, PF≥1.3, avg≥+0.15R,
-maxDD<10%, every one of the last 20 reviewed with zero breaches) is computed
-from **broker fills only** — the lab reports **NOT MET — stay paper** until the
-data says otherwise.
+Go live only when all five hold, computed from broker fills only:
+n ≥ 40 · PF ≥ 1.3 · avg ≥ +0.15R · maxDD < 10% · 0 breaches in the last 20
+flat round trips. Breaches are derived from fills, never typed. A trade
+without a bracket stop can never earn an R and is excluded from n, but it
+cannot hide from the breach window. Regime is snapshotted each morning and
+never backfilled: fills before the first snapshot read `UNKNOWN` forever.
 
-Two things the gate refuses to accept as evidence:
-
-- **Hand-typed rows.** The manual journal form is for no-trade observations and
-  SIM drills. Those rows are listed and exported, but `journalStats` counts only
-  `src: "alpaca"` round trips, and the lab prints how many it dropped. Forty
-  typed trades move n by zero.
-- **Unreviewed trades.** The followed-plan flag is tri-state — `yes`, `no`, or
-  UNREVIEWED — and it lives in browser storage. An unreviewed trade is not a
-  clean one, so any unreviewed row inside the last 20 blocks go-live. Otherwise
-  clearing site data would silently reset every breach and flip the gate to MET.
-
-## Tests
+## Develop
 
 ```
-npm test          # node --test — no dependencies, nothing to install
+npm ci
+npm test          # node --test — engine, evidence, store, alerts
+npm run typecheck
+npm run dev       # http://localhost:3000 (no keys → every panel shows ERROR, by design)
 ```
-
-Covers every gate (pass and block), OR/VWAP/RVOL derivations from bars,
-journal R math, evidence tiers, and the go-live gate — including that typed
-rows and unreviewed trades cannot clear it. GitHub Actions runs the same
-command on Node 20 and 22 for every push to `main` and every pull request
-(`.github/workflows/test.yml`).

@@ -1,10 +1,32 @@
 {
   "name": "gladiator-scalp-hud",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "GLADIATOR SCALP command HUD — static desk + read-only Alpaca proxies",
+  "description": "GLADIATOR SCALP command HUD + evidence dashboard — read-only Alpaca proxies, one rule engine",
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
-    "test": "node --test"
+    "dev": "next dev",
+    "prebuild": "node scripts/fetch-vault.mjs",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "marked": "^18.0.11",
+    "next": "^16.3.4",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@types/three": "^0.185.0",
+    "typescript": "^5"
   }
 }
