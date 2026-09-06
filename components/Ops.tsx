@@ -27,7 +27,12 @@ export default function OpsConsole({ vault }: { vault: { generatedAt: string | n
     const j = await r.json();
     setMsg(r.ok ? "token accepted — stored as an httpOnly cookie in this browser" : `rejected: ${j.error}`);
     setToken("");
-    if (r.ok) { await refresh(); await loadOps(); void apiGet<{ enforced: boolean; hasCookie: boolean }>("/api/session").then(setSession); }
+    if (r.ok) {
+      /* the login wall (proxy.ts) sends people here with ?next=/the/page; go back there. Same-origin paths only. */
+      const next = new URLSearchParams(window.location.search).get("next") || "";
+      if (/^/(?!/)/.test(next)) { window.location.assign(next); return; }
+      await refresh(); await loadOps(); void apiGet<{ enforced: boolean; hasCookie: boolean }>("/api/session").then(setSession);
+    }
   };
   const disconnect = async () => { await fetch("/api/session", { method: "DELETE" }); setMsg("cookie cleared"); await refresh(); };
   const cron = (r: Record<string, unknown> | null) => r ? `${r.ok ? "ok" : "FAIL"} · ${r.finished ?? r.started}${r.skipped ? " · " + r.skipped : ""}` : "never ran";
@@ -45,7 +50,7 @@ export default function OpsConsole({ vault }: { vault: { generatedAt: string | n
         <div className="ticket-card" style={{ marginTop: 8 }}>
           state <b style={{ color: state === "LIVE" ? "var(--ok)" : state === "STALE" ? "var(--orange)" : "var(--bad)" }}>{state}</b> · token enforced: <b>{session ? String(session.enforced) : "—"}</b> · cookie: <b>{session ? String(session.hasCookie) : "—"}</b><br />{msg}
         </div>
-        <p className="muted" style={{ fontSize: 12 }}>The token is never stored in localStorage or a URL. Vercel Authentication sits in front of every page; this cookie only unlocks the read-only API routes for this browser.</p>
+        <p className="muted" style={{ fontSize: 12 }}>The token is never stored in localStorage or a URL. This cookie is the login for every page and for the read-only API routes in this browser; without it every page redirects here.</p>
       </div>
       <div className="panel">
         <h3>PREFLIGHT</h3>
