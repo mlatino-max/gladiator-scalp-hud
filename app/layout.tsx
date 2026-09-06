@@ -3,6 +3,7 @@ import "./globals.css";
 import { HudProvider } from "@/components/HudProvider";
 import { AppShell } from "@/components/Shell";
 import { EvidenceProvider } from "@/components/evidence";
+import { Analytics } from '@vercel/analytics/next';
 
 export const metadata: Metadata = {
   title: "GLADIATOR SCALP // COMMAND HUD",
@@ -24,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <AppShell>{children}</AppShell>
           </EvidenceProvider>
         </HudProvider>
+        <Analytics />
       </body>
     </html>
   );
