@@ -49,6 +49,7 @@ Env vars (names differ from the Render MCP host — see the ops runbook):
 | `HUD_ACCESS_TOKEN` | required on `/api/*`; enter once on `/ops` → httpOnly cookie |
 | `CRON_SECRET` | Vercel sends it as `Authorization: Bearer` to the cron routes |
 | `KV_REST_API_URL` / `KV_REST_API_TOKEN` | Vercel KV (Upstash REST). Without them the store is in-memory and `/ops` says so |
+| `KV_ENV_PREFIX` | prefix the Vercel storage integration put on those two names (this project: `gladiator_scalp_`); bare names still win |
 | `ALERT_PUSH_URL` (+ `ALERT_PUSH_TOKEN`) | ntfy-style push endpoint for TRADE_ARMED / gate flips / tier changes / cron failures |
 | `GITHUB_VAULT_TOKEN` | read-only token for the vault repo, used at build only |
 | `VAULT_REPO`, `VAULT_REF`, `VAULT_ALLOWLIST` | default `mlatino-max/gladiator`, `master`, `TradeCenter,Projects/Trading,Journal/Daily,Graphify/CLAUDE CODE` |
