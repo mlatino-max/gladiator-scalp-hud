@@ -30,7 +30,7 @@ export default function OpsConsole({ vault }: { vault: { generatedAt: string | n
     if (r.ok) {
       /* the login wall (proxy.ts) sends people here with ?next=/the/page; go back there. Same-origin paths only. */
       const next = new URLSearchParams(window.location.search).get("next") || "";
-      if (/^/(?!/)/.test(next)) { window.location.assign(next); return; }
+      if (next.startsWith("/") && !next.startsWith("//")) { window.location.assign(next); return; }
       await refresh(); await loadOps(); void apiGet<{ enforced: boolean; hasCookie: boolean }>("/api/session").then(setSession);
     }
   };
