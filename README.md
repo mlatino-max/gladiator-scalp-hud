@@ -55,8 +55,10 @@ Env vars (names differ from the Render MCP host — see the ops runbook):
 | `VAULT_REPO`, `VAULT_REF`, `VAULT_ALLOWLIST` | default `mlatino-max/gladiator`, `master`, `TradeCenter,Projects/Trading,Journal/Daily,Graphify/CLAUDE CODE` |
 | `GLADIATOR_EQUITY_CAP` | default 750 |
 
-Turn on **Vercel Authentication** (deployment protection) for production and
-previews. Cron jobs bypass it; browsers do not.
+Vercel's Standard Protection gates previews and deployment URLs but not the
+production domain on the Pro plan, so `proxy.ts` gates every page with the
+`HUD_ACCESS_TOKEN` cookie as well: no cookie → redirect to `/ops`, where the
+token is entered once. `/api/*` keeps its own guard; cron jobs are unaffected.
 
 Vault notes ship only if they sit in an allowlisted folder **and** carry
 `publish: true` in frontmatter. The build fails on a guarded confidential
