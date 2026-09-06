@@ -63,3 +63,28 @@ test("evaluate: armed ticket alerts once per date, gate state once per change", 
     delete process.env.ALERT_PUSH_URL;
   }
 });
+
+test("store() honours KV_ENV_PREFIX and prefers the bare names", () => {
+  const saved = { ...process.env };
+  try {
+    for (const k of Object.keys(process.env)) if (/KV_REST_API|KV_ENV_PREFIX/.test(k)) delete process.env[k];
+    S.useStore(null);
+    assert.equal(S.store().kind, "memory", "no variables at all → memory");
+
+    process.env.KV_ENV_PREFIX = "gladiator_scalp_";
+    process.env.gladiator_scalp_KV_REST_API_URL = "https://prefixed.example";
+    process.env.gladiator_scalp_KV_REST_API_TOKEN = "t1";
+    S.useStore(null);
+    assert.equal(S.store().kind, "kv", "prefixed variables are found through KV_ENV_PREFIX");
+    assert.equal(S.store().url, "https://prefixed.example");
+
+    process.env.KV_REST_API_URL = "https://bare.example";
+    process.env.KV_REST_API_TOKEN = "t2";
+    S.useStore(null);
+    assert.equal(S.store().url, "https://bare.example", "bare names win over the prefix");
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in saved)) delete process.env[k];
+    Object.assign(process.env, saved);
+    S.useStore(new S.MemoryStore());
+  }
+});
