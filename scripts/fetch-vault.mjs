@@ -1,18 +1,23 @@
 #!/usr/bin/env node
-/* Build-time vault ingestion (spec §3.4).
-   Fetches ONLY allowlisted folders from the vault repo, keeps ONLY notes
-   whose frontmatter says `publish: true`, and FAILS THE BUILD if any kept
-   note trips the confidential-name guard or looks like it contains a key.
-   Writes content/vault/index.json. With no GITHUB_VAULT_TOKEN it writes an
-   empty index and warns — the site builds, the playbook says "no published
-   notes", and nothing private ever leaves the vault by accident. */
-import { writeFile, mkdir } from "node:fs/promises";
+/* Vault ingestion (spec §3.4).
+   Reads ONLY allowlisted folders, keeps ONLY notes whose frontmatter says
+   `publish: true`, and FAILS (exit 1, nothing written) if any kept note
+   trips the confidential-name guard or looks like it contains a key.
+   Two sources, same filters:
+   - GitHub (build time on Vercel/CI): needs GITHUB_VAULT_TOKEN; without it
+     an empty index is written and a warning printed — the site builds and
+     the playbook says "no published notes".
+   - VAULT_DIR (the local Docker stack, at runtime): the vault folder itself,
+     bind-mounted read-only. No token, no network.
+   Output: VAULT_INDEX_OUT or content/vault/index.json. */
+import { writeFile, mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
 const REPO = process.env.VAULT_REPO || "mlatino-max/gladiator";
 const REF = process.env.VAULT_REF || "master";
 const TOKEN = process.env.GITHUB_VAULT_TOKEN;
-const OUT = path.resolve("content/vault/index.json");
+const DIR = process.env.VAULT_DIR ? path.resolve(process.env.VAULT_DIR) : null;
+const OUT = path.resolve(process.env.VAULT_INDEX_OUT || "content/vault/index.json");
 const ALLOW = (process.env.VAULT_ALLOWLIST || "TradeCenter,Projects/Trading,Journal/Daily,Graphify/CLAUDE CODE").split(",").map(s => s.trim()).filter(Boolean);
 const TICKET_DIR = process.env.VAULT_TICKET_DIR || "Projects/Trading/SCALPER-HUD/bot/tickets";
 const GUARD = /\b(Licensing|JDC|Juvenile)\b/;
@@ -48,21 +53,44 @@ function frontmatter(md) {
 }
 function allowed(p) { return ALLOW.some(a => p === a || p.startsWith(a.replace(/\/$/, "") + "/")); }
 
+/* Local source: walk only the allowlisted folders and the ticket folder of
+   VAULT_DIR. Hidden folders (.obsidian, .git, .trash) are never entered.
+   Paths are vault-relative with forward slashes, like GitHub's. */
+async function walk(root, rel, out) {
+  let entries;
+  try { entries = await readdir(path.join(root, rel), { withFileTypes: true }); } catch (e) { if (e.code === "ENOENT") return out; throw e; }
+  for (const e of entries) {
+    if (e.name.startsWith(".")) continue;
+    const p = rel ? `${rel}/${e.name}` : e.name;
+    if (e.isDirectory()) await walk(root, p, out);
+    else if (e.isFile()) out.push({ path: p });
+  }
+  return out;
+}
+async function localBlobs() {
+  const blobs = [];
+  for (const folder of [...new Set([...ALLOW, TICKET_DIR])]) await walk(DIR, folder.replace(/\/$/, ""), blobs);
+  /* the ticket folder usually sits inside an allowlisted folder: one entry per file */
+  return [...new Map(blobs.map(b => [b.path, b])).values()];
+}
+function localRaw(p) { return readFile(path.join(DIR, p), "utf8"); }
+
 async function main() {
   await mkdir(path.dirname(OUT), { recursive: true });
-  const index = { generatedAt: new Date().toISOString(), repo: REPO, ref: REF, allowlist: ALLOW, notes: [], tickets: [], skipped: 0, source: "github" };
-  if (!TOKEN) {
+  const index = { generatedAt: new Date().toISOString(), repo: DIR ? DIR : REPO, ref: DIR ? "local" : REF, allowlist: ALLOW, notes: [], tickets: [], skipped: 0, source: DIR ? "local" : "github" };
+  if (!DIR && !TOKEN) {
     index.source = "no-token";
     console.warn("[vault] GITHUB_VAULT_TOKEN not set — writing an empty vault index");
     await writeFile(OUT, JSON.stringify(index, null, 2));
     return;
   }
-  const blobs = await tree();
+  const read = DIR ? localRaw : raw;
+  const blobs = DIR ? await localBlobs() : await tree();
   const mdFiles = blobs.filter(b => b.path.endsWith(".md") && allowed(b.path));
   const ticketFiles = blobs.filter(b => b.path.startsWith(TICKET_DIR + "/") && b.path.endsWith(".json"));
   const violations = [];
   for (const b of mdFiles) {
-    const md = await raw(b.path);
+    const md = await read(b.path);
     const { fm, body } = frontmatter(md);
     if (String(fm.publish).toLowerCase() !== "true") { index.skipped++; continue; }
     if (GUARD.test(b.path) || GUARD.test(md)) violations.push(`${b.path}: confidential-name guard`);
@@ -78,7 +106,7 @@ async function main() {
   }
   for (const b of ticketFiles) {
     try {
-      const j = JSON.parse(await raw(b.path));
+      const j = JSON.parse(await read(b.path));
       const date = (/(\d{4}-\d{2}-\d{2})/.exec(path.basename(b.path)) || [])[1] || null;
       index.tickets.push({ path: b.path, date, symbol: j.symbol || null, ticket: j });
     } catch (e) { console.warn(`[vault] bad ticket ${b.path}: ${e.message}`); }
@@ -88,6 +116,6 @@ async function main() {
     process.exit(1);
   }
   await writeFile(OUT, JSON.stringify(index, null, 2));
-  console.log(`[vault] ${index.notes.length} published notes, ${index.tickets.length} tickets, ${index.skipped} skipped (no publish: true)`);
+  console.log(`[vault] ${index.source}: ${index.notes.length} published notes, ${index.tickets.length} tickets, ${index.skipped} skipped (no publish: true) → ${OUT}`);
 }
 main().catch(e => { console.error("[vault] " + e.message); process.exit(1); });

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { dailyNote, renderMarkdown, ticketsFor } from "@/lib/vault";
 import DayFills from "@/components/DayFills";
+export const dynamic = "force-dynamic";
 
 export default async function Day({ params }: { params: Promise<{ date: string }> }) {
   const { date } = await params;

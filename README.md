@@ -65,6 +65,43 @@ Vault notes ship only if they sit in an allowlisted folder **and** carry
 name or anything that looks like a credential. Add a deploy hook to the
 vault repo so a push rebuilds the site.
 
+## Run locally with Docker (replaces Vercel + Render)
+
+`docker-compose.yml` runs the whole desk on one PC with Docker Desktop:
+
+| container | replaces | what it is |
+|---|---|---|
+| `hud` | Vercel hosting + Vercel KV | this app, Next.js standalone build; state in `/data/store.json` on the `hud-data` volume (`lib/store.js` FileStore); the vault bind-mounted read-only at `/vault` and re-indexed every 10 min (no `GITHUB_VAULT_TOKEN`) |
+| `cron` | Vercel Cron | BusyBox crond in `America/New_York`: `regime-snapshot` 09:40 ET, `journal-sync` 16:15 ET, weekdays. Follows DST by itself |
+| `alpaca-mcp` | Render `alpaca-mcp-server-paper` | the official `alpaca-mcp-server` (PyPI, pinned) over streamable HTTP on `127.0.0.1:8000/mcp`, paper mode hard-coded |
+
+```
+cp .env.example .env        # then paste the PAPER keys + keep the generated tokens
+docker compose up -d --build
+```
+
+Open `http://localhost:3000/ops`, enter `HUD_ACCESS_TOKEN` once. Every page
+and every `/api/*` route is behind that token; the HUD listens on the LAN so a
+phone on the same Wi-Fi can use it (`HUD_BIND=127.0.0.1` in `.env` to keep it
+on this PC). The MCP server is localhost-only because it can place paper
+orders. Register it with Claude Code from the vault (`.mcp.json` there) or:
+
+```
+claude mcp add --transport http alpaca-local http://127.0.0.1:8000/mcp
+```
+
+Day to day:
+
+```
+docker compose ps                         # health
+docker compose logs -f cron               # what the jobs did
+docker compose exec cron tick journal-sync   # fire a job now
+docker compose up -d --build hud          # after a code change
+```
+
+Unlike Vercel, nothing outside the LAN can reach this stack. `ALERT_PUSH_URL`
+(ntfy) still delivers alerts to a phone anywhere.
+
 ## Evidence discipline
 
 Go live only when all five hold, computed from broker fills only:

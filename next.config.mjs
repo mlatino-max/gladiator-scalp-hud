@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  /* The Docker image (see Dockerfile) builds the self-contained standalone
+     server; Vercel keeps its default output. */
+  ...(process.env.NEXT_OUTPUT_STANDALONE === "1" ? { output: "standalone" } : {}),
   reactStrictMode: true,
   poweredByHeader: false,
   /* the rule engine and services are CommonJS on purpose: the same file

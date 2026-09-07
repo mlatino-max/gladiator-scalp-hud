@@ -1,0 +1,3 @@
+# Files that run inside Linux containers must stay LF on every checkout.
+*.sh text eol=lf
+docker/cron/crontab text eol=lf
