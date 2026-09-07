@@ -6,3 +6,7 @@ next-env.d.ts
 *.tsbuildinfo
 content/vault/*.json
 !content/vault/index.json
+
+# local Docker stack (docker-compose.yml)
+.env
+data/

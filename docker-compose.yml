@@ -1,0 +1,69 @@
+# GLADIATOR local stack — Docker Desktop replaces two paid services:
+#   Vercel  → `hud` (the Next.js app) + `cron` (the two scheduled jobs) + a
+#             file-backed store on a named volume instead of Vercel KV
+#   Render  → `alpaca-mcp` (the official Alpaca MCP server, streamable HTTP)
+# Secrets come from `.env` next to this file (see .env.example). The vault is
+# bind-mounted read-only so the playbook reads it directly — no GitHub token.
+name: gladiator-local
+
+services:
+  hud:
+    build: .
+    image: gladiator-scalp-hud:local
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HUD_STORE_FILE: /data/store.json
+      VAULT_DIR: /vault
+      VAULT_INDEX_PATH: /data/vault-index.json
+      VAULT_REFRESH_SECONDS: ${VAULT_REFRESH_SECONDS:-600}
+    volumes:
+      - hud-data:/data
+      - ${VAULT_PATH:-../../GLADIATOR}:/vault:ro
+    ports:
+      # LAN-reachable on purpose (phone on the same Wi-Fi); every page and
+      # every API route is behind HUD_ACCESS_TOKEN. Set HUD_BIND=127.0.0.1
+      # in .env to keep it on this PC only.
+      - "${HUD_BIND:-0.0.0.0}:${HUD_PORT:-3000}:3000"
+    healthcheck:
+      # /api/session GET is unguarded and never calls the broker
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/session"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  cron:
+    build: docker/cron
+    image: gladiator-scalp-hud-cron:local
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+      HUD_URL: http://hud:3000
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in .env}
+    depends_on:
+      hud:
+        condition: service_healthy
+
+  alpaca-mcp:
+    build: docker/alpaca-mcp
+    image: alpaca-mcp-server:local
+    restart: unless-stopped
+    environment:
+      # Blank until .env has the paper keys: the HUD then shows ERROR panels
+      # by design and this container keeps restarting until they are set.
+      ALPACA_API_KEY: ${ALPACA_API_KEY:-}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
+      # Hard-coded, not read from .env: this stack is a paper desk. Going live
+      # means editing this file on purpose, the same deliberate act the Render
+      # runbook required.
+      ALPACA_PAPER_TRADE: "true"
+      ALPACA_TOOLSETS: ${ALPACA_TOOLSETS:-}
+    ports:
+      # localhost only: this server can place PAPER orders, so it is never
+      # exposed to the LAN. MCP endpoint: http://127.0.0.1:8000/mcp
+      - "127.0.0.1:${MCP_PORT:-8000}:8000"
+
+volumes:
+  hud-data:

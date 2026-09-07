@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { noteBySlug, renderMarkdown, vault } from "@/lib/vault";
+import { noteBySlug, renderMarkdown } from "@/lib/vault";
 
-export function generateStaticParams() { return vault().notes.map(n => ({ slug: n.slug.split("/") })); }
+/* rendered per request: the Docker stack regenerates the index while the
+   server runs, so build-time params would go stale */
+export const dynamic = "force-dynamic";
 
 export default async function Note({ params }: { params: Promise<{ slug: string | string[] }> }) {
   const { slug } = await params;

@@ -88,3 +88,24 @@ test("store() honours KV_ENV_PREFIX and prefers the bare names", () => {
     S.useStore(new S.MemoryStore());
   }
 });
+
+test("file store persists across instances and rewrites atomically", async () => {
+  const { mkdtempSync, existsSync, readdirSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const dir = mkdtempSync(path.join(tmpdir(), "hud-store-"));
+  const file = path.join(dir, "nested", "store.json");
+  const a = S.useStore(new S.FileStore(file));
+  assert.equal(a.kind, "file");
+  assert.equal(await S.loadJournal("scalp"), null, "empty before the first write, no file needed");
+  await S.saveRegimeSnapshot("scalp", { date: "2026-09-08", regime: "GREEN" });
+  await S.recordCronRun("journal-sync", { ok: true, n: 3 });
+  assert.ok(existsSync(file), "written on first set");
+  assert.deepEqual(readdirSync(path.dirname(file)), ["store.json"], "no temp file left behind");
+  /* a fresh instance (a restarted container) sees the same state */
+  S.useStore(new S.FileStore(file));
+  assert.equal((await S.loadRegimeSnapshots("scalp"))["2026-09-08"].regime, "GREEN");
+  assert.equal((await S.lastCronRun("journal-sync")).n, 3);
+  assert.equal(await a.ping(), true);
+  S.useStore(new S.MemoryStore());
+});

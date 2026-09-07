@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { vault } from "@/lib/vault";
 
+/* the vault index can change at runtime (Docker stack): never prerender */
+export const dynamic = "force-dynamic";
+
 export default function Playbook() {
   const v = vault();
   const folders = [...new Set(v.notes.map(n => n.folder))].sort();

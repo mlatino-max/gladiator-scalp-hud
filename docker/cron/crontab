@@ -1,0 +1,7 @@
+# Eastern Time (TZ=America/New_York). Weekdays only; the routes themselves
+# skip non-trading days via the Alpaca calendar.
+# regime-snapshot: after the opening range, once per day, never backfilled.
+40 9  * * 1-5  tick regime-snapshot
+# journal-sync: after the 15:55 time-stop and the close; rebuilds round trips
+# from fills, persists the cache, evaluates alerts.
+15 16 * * 1-5  tick journal-sync
