@@ -1,7 +1,15 @@
 # Eastern Time (TZ=America/New_York). Weekdays only; the routes themselves
 # skip non-trading days via the Alpaca calendar.
+# screen: v_pullback_screen over the last eight loaded sessions, booked in
+# screen_runs / screen_candidates before the 9:03 ET pre-market routine.
+45 8  * * 1-5  tick screen 300
 # regime-snapshot: after the opening range, once per day, never backfilled.
 40 9  * * 1-5  tick regime-snapshot
 # journal-sync: after the 15:55 time-stop and the close; rebuilds round trips
-# from fills, persists the cache, evaluates alerts.
+# from fills, persists the cache, mirrors orders/fills/round_trips to
+# Supabase, evaluates alerts.
 15 16 * * 1-5  tick journal-sync
+# screen-load: after the close, once Massive's grouped daily for the session
+# is final. Fills bars_daily + symbols. Fifteen minutes: the free Massive
+# tier is five requests a minute and the weekly reference refresh pages.
+30 18 * * 1-5  tick screen-load 900

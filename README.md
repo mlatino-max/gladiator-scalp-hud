@@ -72,7 +72,7 @@ vault repo so a push rebuilds the site.
 | container | replaces | what it is |
 |---|---|---|
 | `hud` | Vercel hosting + Vercel KV | this app, Next.js standalone build; state in `/data/store.json` on the `hud-data` volume (`lib/store.js` FileStore); the vault bind-mounted read-only at `/vault` and re-indexed every 10 min (no `GITHUB_VAULT_TOKEN`) |
-| `cron` | Vercel Cron | BusyBox crond in `America/New_York`: `regime-snapshot` 09:40 ET, `journal-sync` 16:15 ET, weekdays. Follows DST by itself |
+| `cron` | Vercel Cron | BusyBox crond in `America/New_York`, weekdays: `screen` 08:45 ET, `regime-snapshot` 09:40 ET, `journal-sync` 16:15 ET, `screen-load` 18:30 ET. Follows DST by itself |
 | `alpaca-mcp` | Render `alpaca-mcp-server-paper` | the official `alpaca-mcp-server` (PyPI, pinned) over streamable HTTP on `127.0.0.1:8000/mcp`, paper mode hard-coded |
 
 ```
@@ -102,6 +102,23 @@ docker compose up -d --build hud          # after a code change
 Unlike Vercel, nothing outside the LAN can reach this stack. `ALERT_PUSH_URL`
 (ntfy) still delivers alerts to a phone anywhere.
 
+## Supabase mirror and screen (TradeCenter Supabase Plan, phases 1–2)
+
+The `hud` container is the only writer to the Supabase project; the
+service-role key lives in `.env` and nowhere else. `lib/supabase.js` is a
+plain PostgREST client (no SDK), and nothing in it can reach a broker.
+
+| piece | what it does |
+|---|---|
+| `journal-sync` (16:15 ET) | after the usual cache write, mirrors the same fills the engine paired into `orders`, `fills`, `round_trips` (`lib/journal-mirror.js`). FIFO pairing stays in `lib/engine.js`; the mirror only translates records into rows |
+| `GET /api/journal` | adds `mirror`: the table's counts over the same window next to the fresh reconstruction, `mismatch: true` (and a `[journal] mirror mismatch` log line) when they disagree. The recompute stays authoritative until five sessions agree |
+| every `/api/scan` and every cron route | inserts a `heartbeats` row so the free-plan project never idles into a pause |
+| `screen-load` (18:30 ET) | pulls Massive's grouped daily for the last eight sessions into `bars_daily` and upserts `symbols`; refreshes the ticker reference (type → ETF / leveraged / excluded) weekly. Needs `MASSIVE_API_KEY` in `.env`; without it the route answers 503 with a hint (`lib/massive.js`, `lib/screen.js`) |
+| `screen` (08:45 ET) and `GET /api/screen[?record=1]` | reads `v_pullback_screen` (the six rules live in that view) and, when recording, books the run in `screen_runs` / `screen_candidates` |
+
+`/api/ops` shows `supabase.ping` and `massive.configured`. Fire any job by
+hand with `docker compose exec cron tick <name> [seconds]`.
+
 ## Evidence discipline
 
 Go live only when all five hold, computed from broker fills only:
@@ -115,7 +132,7 @@ never backfilled: fills before the first snapshot read `UNKNOWN` forever.
 
 ```
 npm ci
-npm test          # node --test — engine, evidence, store, alerts
+npm test          # node --test — engine, evidence, store, alerts, supabase, journal-mirror, screen
 npm run typecheck
 npm run dev       # http://localhost:3000 (no keys → every panel shows ERROR, by design)
 ```
