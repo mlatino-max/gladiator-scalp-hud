@@ -19,6 +19,7 @@ server is deliberately absent: it can place paper orders and stays on the PC.
 
 ## Bring-up
 
+0. On the PC: `sh deploy/oracle/provision.sh` (needs `~/.oci/config`; see the vault runbook). Re-run until A1 capacity appears.
 1. On the VM: `curl -fsSL https://raw.githubusercontent.com/mlatino-max/gladiator-scalp-hud/main/deploy/oracle/setup-vm.sh | sh`
 2. Fill `deploy/oracle/.env` (`HUD_HOST`, tokens, paper keys) and drop the deploy key in `secrets/`.
 3. `sudo docker compose up -d --build`
