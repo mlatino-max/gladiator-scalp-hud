@@ -22,10 +22,11 @@ SHAPE=${SHAPE:-VM.Standard.A1.Flex}
 OCPUS=${OCPUS:-2}
 MEM=${MEM:-12}
 SSH_PUB=${SSH_PUB:-$HOME/.ssh/gladiator-oracle.pub}
+command -v cygpath >/dev/null 2>&1 && SSH_PUB=$(cygpath -w "$SSH_PUB")   # Git Bash -> C:\... for the Windows CLI
 VCN_CIDR=10.0.0.0/16
 SUBNET_CIDR=10.0.0.0/24
 
-q() { oci "$@" --raw-output 2>/dev/null || true; }
+q() { oci "$@" --raw-output 2>/dev/null | tr -d '\r' || true; }   # Windows CLI prints CRLF
 nz() { [ -n "$1" ] && [ "$1" != "null" ]; }
 
 # Root compartment = the tenancy; the AD list returns it without extra rights.
@@ -82,6 +83,9 @@ if ! nz "$INST"; then
     *)     SHAPE_CFG="" ;;
   esac
   launched=""
+  attempt=0
+  while [ -z "$launched" ] && [ "$attempt" -lt "${ATTEMPTS:-1}" ]; do
+  attempt=$((attempt+1)); [ "$attempt" -gt 1 ] && { echo "[provision] attempt $attempt/${ATTEMPTS:-1} after ${SLEEP:-600} s"; sleep "${SLEEP:-600}"; }
   for AD in $(q iam availability-domain list --query 'data[].name' | tr -d '[]", ' | tr '\n' ' '); do
     echo "[provision] launching $SHAPE in $AD ..."
     # shellcheck disable=SC2086
@@ -90,10 +94,12 @@ if ! nz "$INST"; then
           --ssh-authorized-keys-file "$SSH_PUB" --wait-for-state RUNNING --query data.id --raw-output 2>/tmp/launch.err); then
       launched=1; break
     fi
-    grep -qi "capacity" /tmp/launch.err && { echo "[provision] $AD: out of host capacity"; continue; }
+    if grep -qi "capacity" /tmp/launch.err; then echo "[provision] $AD: out of host capacity"; continue; fi
+    if grep -qi "TooManyRequests" /tmp/launch.err; then echo "[provision] $AD: rate limited, pausing 90 s"; sleep 90; continue; fi
     cat /tmp/launch.err >&2; exit 1
   done
-  [ -n "$launched" ] || { echo "[provision] no capacity for $SHAPE in any AD right now; re-run later or SHAPE=VM.Standard.E2.1.Micro" >&2; exit 2; }
+  done
+  [ -n "$launched" ] || { echo "[provision] no capacity for $SHAPE in any AD right now; re-run later (ATTEMPTS=N SLEEP=secs loops) or SHAPE=VM.Standard.E2.1.Micro" >&2; exit 2; }
   echo "[provision] instance RUNNING $INST"
 else
   echo "[provision] instance exists $INST"
