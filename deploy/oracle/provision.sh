@@ -13,6 +13,9 @@
 # fall back with SHAPE=VM.Standard.E2.1.Micro (x86, 1 GB, image built on the PC).
 set -eu
 export MSYS_NO_PATHCONV=1   # Git Bash: keep "0.0.0.0/0" and JSON intact
+# On the PC the CLI lives in a short-path venv (C:\o) because pip cannot unpack
+# oci-cli under the 260-char Windows path limit in the default site-packages.
+command -v oci >/dev/null 2>&1 || PATH="/c/o/Scripts:$PATH"
 
 NAME=${NAME:-gladiator-hud}
 SHAPE=${SHAPE:-VM.Standard.A1.Flex}
