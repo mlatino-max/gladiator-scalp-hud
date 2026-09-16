@@ -70,7 +70,7 @@ services:
     image: caddy:2.10-alpine
     restart: unless-stopped
     environment:
-      HUD_HOST: ${HUD_HOST:?set HUD_HOST in .env, e.g. 129-146-1-2.sslip.io}
+      HUD_HOST: ${HUD_HOST:?set HUD_HOST in .env, e.g. gladiatorhud.com or 129-146-1-2.sslip.io}
     ports:
       - "80:80"
       - "443:443"

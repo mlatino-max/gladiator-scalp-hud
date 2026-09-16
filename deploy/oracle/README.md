@@ -24,6 +24,24 @@ server is deliberately absent: it can place paper orders and stays on the PC.
 3. `sudo docker compose up -d --build`
 4. Verify: `curl -sI https://$HUD_HOST/` is a 307 to `/ops`; `/api/ops` is 401 without the token and reports `account.ok` with it; `docker compose logs vault-sync` shows a commit hash; `docker compose exec cron sh -c 'cat /etc/crontabs/root'`.
 
+## DNS: gladiatorhud.com
+
+The domain was registered at Vercel on 2026-09-16 (team `tino24`, $11.25/yr,
+Vercel nameservers). It is the HUD's public name; the cloud sleeves API keeps
+`sleeves.gladiatorhud.com` (project `gladiator-sleeves`). Cut-over, once the VM
+has a public IP:
+
+1. Remove the apex and `www` from the `gladiator-sleeves` project, where the
+   checkout attached them by default:
+   `vercel domains rm gladiatorhud.com --scope tino24` (leave `sleeves.`).
+2. Point both at the VM: `vercel dns add gladiatorhud.com @ A <ip> --scope tino24`
+   and `vercel dns add gladiatorhud.com www A <ip> --scope tino24`.
+3. Set `HUD_HOST=gladiatorhud.com` in `.env` and `docker compose up -d caddy`.
+   Caddy serves the apex and 301s `www` to it; certificates are automatic
+   because 80/443 are open.
+4. `curl -sI https://gladiatorhud.com/` is a 307 to `/ops`;
+   `curl -sI https://www.gladiatorhud.com/` is a 301 to the apex.
+
 ## Shapes
 
 `VM.Standard.A1.Flex` (Ampere, arm64) 2 OCPU / 12 GB is plenty and builds the
