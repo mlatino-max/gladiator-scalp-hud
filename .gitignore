@@ -10,3 +10,7 @@ content/vault/*.json
 # local Docker stack (docker-compose.yml)
 .env
 data/
+
+# Oracle deployment secrets (deploy/oracle/README.md)
+deploy/oracle/.env
+deploy/oracle/secrets/

@@ -1,0 +1,6 @@
+# HTTPS front door for the HUD. Caddy fetches and renews the Let's Encrypt
+# certificate for HUD_HOST on its own; the HUD never listens on a public port.
+{$HUD_HOST} {
+	encode gzip
+	reverse_proxy hud:3000
+}

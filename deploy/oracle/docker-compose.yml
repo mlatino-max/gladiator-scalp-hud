@@ -1,0 +1,88 @@
+# GLADIATOR SCALP HUD on an Oracle Cloud Always Free VM.
+#
+# Same image and cron sidecar as the local Docker Desktop stack. What differs:
+#   1. The vault is a sparse, blob-less git clone kept fresh by `vault-sync`
+#      (read-only deploy key) instead of a bind-mount of the Obsidian folder.
+#   2. Caddy terminates HTTPS on a public name; the HUD itself is never
+#      published on a host port. Every page and API route still sits behind
+#      HUD_ACCESS_TOKEN, exactly as on the PC.
+#   3. No alpaca-mcp: that server can place PAPER orders and stays on the PC.
+# Secrets come from `.env` next to this file (see .env.example) and from
+# `secrets/vault_deploy_key` (private half of a read-only GitHub deploy key).
+name: gladiator-oracle
+
+services:
+  vault-sync:
+    image: alpine/git:2.47.2
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/vault-sync.sh"]
+    environment:
+      VAULT_REPO: ${VAULT_REPO:-git@github.com:mlatino-max/gladiator.git}
+      VAULT_REF: ${VAULT_REF:-master}
+      # colon-separated because one folder name carries a space
+      VAULT_SPARSE: ${VAULT_SPARSE:-TradeCenter:Projects/Trading:Journal/Daily:Graphify/CLAUDE CODE}
+      VAULT_SYNC_SECONDS: ${VAULT_SYNC_SECONDS:-600}
+    volumes:
+      - vault:/vault
+      - ./vault-sync.sh:/vault-sync.sh:ro
+      - ./secrets/vault_deploy_key:/keys/vault_deploy_key:ro
+
+  hud:
+    build:
+      context: ../..
+    image: gladiator-scalp-hud:oracle
+    init: true
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HUD_STORE_FILE: /data/store.json
+      VAULT_DIR: /vault/repo
+      VAULT_INDEX_PATH: /data/vault-index.json
+      VAULT_REFRESH_SECONDS: ${VAULT_REFRESH_SECONDS:-600}
+    volumes:
+      - hud-data:/data
+      - vault:/vault:ro
+    expose:
+      - "3000"
+    healthcheck:
+      # /api/session GET is unguarded and never calls the broker
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/session"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    depends_on:
+      - vault-sync
+
+  cron:
+    build: ../../docker/cron
+    image: gladiator-scalp-hud-cron:oracle
+    restart: unless-stopped
+    environment:
+      TZ: America/New_York
+      HUD_URL: http://hud:3000
+      CRON_SECRET: ${CRON_SECRET:?set CRON_SECRET in .env}
+    depends_on:
+      hud:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      HUD_HOST: ${HUD_HOST:?set HUD_HOST in .env, e.g. 129-146-1-2.sslip.io}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - hud
+
+volumes:
+  hud-data:
+  vault:
+  caddy-data:
+  caddy-config:
