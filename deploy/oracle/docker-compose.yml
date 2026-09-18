@@ -66,6 +66,30 @@ services:
       hud:
         condition: service_healthy
 
+  hermes:
+    # HERMES paper desk: draws the rsi2/trend sleeve picture from the cloud
+    # sleeves' Upstash record and leaves it on hud-data for GET /api/hermes.
+    # Runs the scripts in place from the read-only vault clone; keeps its own
+    # append-only archive under /data/hermes/bot because KV only holds the last
+    # 1000 log lines. Read-only against everything: it never talks to a broker.
+    build: ../../docker/hermes
+    image: gladiator-hermes:oracle
+    init: true
+    restart: unless-stopped
+    environment:
+      KV_REST_API_URL: ${KV_REST_API_URL:-}
+      KV_REST_API_TOKEN: ${KV_REST_API_TOKEN:-}
+      HERMES_DIR: /data/hermes
+      HERMES_SRC: /vault/repo/Projects/Trading/HERMES-ART
+      HERMES_TZ: America/Chicago
+      HERMES_EVERY: ${HERMES_EVERY:-1800}
+    volumes:
+      - hud-data:/data
+      - vault:/vault:ro
+    depends_on:
+      - vault-sync
+      - hud
+
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
