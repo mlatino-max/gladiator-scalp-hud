@@ -18,6 +18,7 @@ export const ROUTES: { href: string; key: string; k: string; n: string; img?: st
   { href: "/evidence/regime", key: "r", k: "REGIME", n: "Regime & Blocks", cls: "ev", group: "EVIDENCE" },
   { href: "/lab", key: "a", k: "LAB", n: "Analysis Lab", group: "OPS" },
   { href: "/playbook", key: "p", k: "DOCTRINE", n: "Playbook", group: "OPS" },
+  { href: "/hermes", key: "h", k: "SLEEVES", n: "HERMES Desk", group: "OPS" },
   { href: "/ops", key: "o", k: "PIPE", n: "Ops Console", group: "OPS" }
 ];
 
