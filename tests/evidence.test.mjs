@@ -219,6 +219,8 @@ test("ownerOf reads the first segment of client_order_id", () => {
   assert.equal(E.ownerOf({ client_order_id: "ORB_KO_1" }), "scalp");
   assert.equal(E.ownerOf({ client_order_id: "tradecenter-fcx-20260831-approved" }), "desk");
   assert.equal(E.ownerOf({ client_order_id: "rsi2:QQQ:2026-09-08" }), "rsi2");
+  assert.equal(E.ownerOf({ client_order_id: "qqqtrend-buy-20261002T200000123" }), "qqqtrend");
+  assert.equal(E.ownerOf({ client_order_id: "qqqtrend-close-20261005T200000123" }), "qqqtrend");
   assert.equal(E.ownerOf({ client_order_id: "fd523bef-29e2-4b7c-9379-4ab11c7ebe14" }), "unattributed");
   assert.equal(E.ownerOf({ client_order_id: "z9IrnJ05KA" }), "unattributed");
   assert.equal(E.ownerOf({}), "unattributed");
