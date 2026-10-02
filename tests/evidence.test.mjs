@@ -8,7 +8,7 @@ const E = require("../lib/engine.js");
    (13:45Z = 09:45 ET). */
 function buy(o) {
   return Object.assign({
-    id: "b1", side: "buy", symbol: "CMG", status: "filled",
+    id: "b1", client_order_id: "scalp-CMG-1", side: "buy", symbol: "CMG", status: "filled",
     filled_at: "2026-08-27T14:05:00Z", filled_qty: "10", filled_avg_price: "52.00", legs: []
   }, o);
 }
@@ -208,4 +208,66 @@ test("firstBlockingGate reads the ticket in gate order and ignores the arm gate"
   assert.equal(E.firstBlockingGate(t), "score");
   assert.equal(E.firstBlockingGate({ gates: [{ key: "trigger", blocking: false, pass: false }] }), null);
   assert.equal(E.firstBlockingGate(null), null);
+});
+
+/* ---- ownership: the paper account is shared, the scalp gate is not ----
+   Cases from the real account: Alpaca uuids and app ids carry no tag; the
+   desk's FCX ticket was tagged tradecenter-...; the sleeves' QQQ buys were
+   untagged market orders. */
+test("ownerOf reads the first segment of client_order_id", () => {
+  assert.equal(E.ownerOf({ client_order_id: "scalp-CMG-20260901" }), "scalp");
+  assert.equal(E.ownerOf({ client_order_id: "ORB_KO_1" }), "scalp");
+  assert.equal(E.ownerOf({ client_order_id: "tradecenter-fcx-20260831-approved" }), "desk");
+  assert.equal(E.ownerOf({ client_order_id: "rsi2:QQQ:2026-09-08" }), "rsi2");
+  assert.equal(E.ownerOf({ client_order_id: "fd523bef-29e2-4b7c-9379-4ab11c7ebe14" }), "unattributed");
+  assert.equal(E.ownerOf({ client_order_id: "z9IrnJ05KA" }), "unattributed");
+  assert.equal(E.ownerOf({}), "unattributed");
+});
+
+test("an untagged fill is not the scalp's: no breaches, no n, shown as another owner", () => {
+  const sleeveBuy = buy({ id: "q1", client_order_id: "fd523bef-29e2-4b7c-9379-4ab11c7ebe14", symbol: "QQQ", legs: [] });
+  const deskTicket = buy({ id: "f1", client_order_id: "tradecenter-fcx-20260831-approved", symbol: "FCX",
+    legs: [tpLeg(), stopLeg({ filled_at: "2026-08-27T17:02:00Z", filled_qty: "10", filled_avg_price: "50.91" })] });
+  const j = trips([sleeveBuy, deskTicket]);
+  const q = j.find(e => e.id === "q1"), f = j.find(e => e.id === "f1");
+  assert.equal(q.strategy, "unattributed");
+  assert.equal(f.strategy, "desk");
+  assert.equal(q.breaches, null, "the scalp protocol does not judge another owner's trade");
+  assert.equal(f.breaches, null);
+  const s = E.evidenceStats(j, { startEquity: 750 });
+  assert.equal(s.n, 0, "the desk's R-trade never pads the scalp's n");
+  assert.equal(s.totalCount, 0);
+  assert.deepEqual(s.others, { unattributed: 1, desk: 1 });
+  assert.equal(s.breachesLast20, 0, "nor its breach window");
+});
+
+test("a repriced ticket keeps its owner through Alpaca's replace chain", () => {
+  /* the real CMG case: tradecenter-cmg-...-approved was replaced at a new price;
+     the replacement that filled carries a fresh uuid and replaces: <original> */
+  const original = buy({ id: "cmg-0", client_order_id: "tradecenter-cmg-20260825-approved", status: "replaced",
+    filled_at: null, filled_qty: "0", filled_avg_price: null });
+  const replacement = buy({ id: "cmg-1", client_order_id: "9fa2fdc5-6d0c-48a5-ae4b-75cef42661e0", replaces: "cmg-0",
+    legs: [stopLeg({ filled_at: "2026-08-27T17:02:00Z", filled_qty: "10", filled_avg_price: "50.91" })] });
+  const j = trips([replacement, original]);
+  assert.equal(j.length, 1, "the unfilled original opens no lot");
+  assert.equal(j[0].strategy, "desk");
+  assert.equal(E.ownerOf({ client_order_id: "x", replaces: "gone" }, {}), "unattributed", "a broken chain is untagged, not guessed");
+});
+
+test("SECOND_TRADE only counts the scalp's own entries that day", () => {
+  const desk = buy({ id: "d1", client_order_id: "tradecenter-x", filled_at: "2026-08-27T13:50:00Z", legs: [stopLeg({ id: "Ld" })] });
+  const scalp = buy({ id: "s-1", client_order_id: "scalp-CMG-1", filled_at: "2026-08-27T14:05:00Z", legs: [stopLeg({ id: "Ls" })] });
+  const j = trips([desk, scalp]);
+  assert.ok(!j.find(e => e.id === "s-1").breaches.includes("SECOND_TRADE"));
+});
+
+test("regimeBreakdown can be scoped to one owner", () => {
+  const recs = [
+    { src: "alpaca", strategy: "scalp", date: "2026-09-02", r: 1, reason: "target" },
+    { src: "alpaca", strategy: "desk", date: "2026-09-02", r: -1, reason: "stop" }
+  ];
+  const all = E.regimeBreakdown(recs, {});
+  const mine = E.regimeBreakdown(recs, {}, "scalp");
+  assert.equal(all.find(g => g.regime === "UNKNOWN").n, 2);
+  assert.equal(mine.find(g => g.regime === "UNKNOWN").n, 1);
 });
