@@ -34,10 +34,10 @@ export type Verdict = {
 };
 export type Fill = { id: string; side: "buy" | "sell"; qty: number; price: number | null; at: string; kind: string };
 export type RoundTrip = {
-  id: string; src: "alpaca" | "manual"; strategy: string; date: string; entryAt: string; symbol: string;
+  id: string; src: "alpaca" | "manual"; strategy: string; clientOrderId?: string | null; date: string; entryAt: string; symbol: string;
   qty: number; entry: number | null; stop: number | null; target: number | null; exit: number | null;
   exitDate: string | null; exitAt: string | null; matchedQty: number; r: number | null; reason: string;
-  pnl: number | null; exitKinds: string[]; fills: Fill[]; breaches: string[]; breachRulesVersion: number;
+  pnl: number | null; exitKinds: string[]; fills: Fill[]; breaches: string[] | null; breachRulesVersion: number;
   regime?: string;
 };
 export type EvidenceGate = { key: string; label: string; value: number; threshold: number; op: string; pass: boolean; noise: boolean };
@@ -45,7 +45,7 @@ export type Stats = {
   strategy: string; n: number; pf: number; avgR: number; winRate: number; maxDDPct: number;
   equityPath: number[]; rPath: number[]; pnlPath: number[]; breachesLast20: number; breachCounts: Record<string, number>;
   windowSize: number; mixedRuleVersions: boolean; excluded: { noStop: number; badR: number; partial: number; open: number; total: number };
-  flatCount: number; totalCount: number; gates: EvidenceGate[]; goLive: boolean;
+  flatCount: number; totalCount: number; others?: Record<string, number>; gates: EvidenceGate[]; goLive: boolean;
   tier: { tier: string; label: string; note: string }; verdict: string; failing: string[];
 };
 export type RegimeSnapshot = { date: string; regime: string; spyClose?: number | null; sma20?: number | null; sma50?: number | null; breadth?: number | null; source?: string; capturedAt?: string };

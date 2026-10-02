@@ -111,6 +111,16 @@ without a bracket stop can never earn an R and is excluded from n, but it
 cannot hide from the breach window. Regime is snapshotted each morning and
 never backfilled: fills before the first snapshot read `UNKNOWN` forever.
 
+**Whose fills count.** The paper account is shared with the TradeCenter desk,
+the rsi2/trend sleeves and Hermes. A round trip belongs to the scalp only when
+its entry order's `client_order_id` starts with `scalp-` or `orb-` (split on
+`-`, `_` or `:`). `tradecenter-`/`desk-`, `rsi2-`, `trend-` and `hermes-` name
+the other owners, and an order created by a reprice inherits the owner of the
+order it replaced. Everything else is `unattributed`. Other owners' round trips
+stay in `/evidence/trades`, greyed as NOT SCALP; they never move n, PF, DD, the
+breach window or the regime table. Any code that places scalp orders must set
+that tag, or its trades will not count.
+
 ## Develop
 
 ```

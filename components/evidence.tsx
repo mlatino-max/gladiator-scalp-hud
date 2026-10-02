@@ -60,11 +60,16 @@ export const BREACH_LABEL: Record<string, string> = {
   NO_STOP: "no bracket stop", MANUAL_EXIT: "manual exit", SECOND_TRADE: "second trade in day",
   OUTSIDE_WINDOW: "entry outside window", OVERSIZED: "oversized risk", HELD_OVERNIGHT: "held overnight"
 };
-export function BreachPills({ codes }: { codes: string[] | undefined }) {
+export function BreachPills({ codes }: { codes: string[] | null | undefined }) {
+  if (codes === null) return <Pill kind="dim" title="not a scalp trade: the scalp protocol does not judge it">N/A</Pill>;
   if (!codes || !codes.length) return <Pill kind="go">CLEAN</Pill>;
   return <>{codes.map(c => <Pill key={c} kind="no" title={BREACH_LABEL[c] || c}>{c}</Pill>)}</>;
 }
+/* the scalp's own round trips; the account is shared with the desk and the sleeves */
+const isScalp = (r: RoundTrip) => (r.strategy || E.RULES.strategy) === E.RULES.strategy;
+const ownerLabel = (o: string) => o === "unattributed" ? "UNTAGGED" : o.toUpperCase();
 function statusOf(r: RoundTrip): { kind: string; label: string; excluded: boolean } {
+  if (r.src === "alpaca" && !isScalp(r)) return { kind: "dim", label: "NOT SCALP · " + ownerLabel(r.strategy), excluded: true };
   if (r.reason === "open") return { kind: "dim", label: "OPEN", excluded: true };
   if (r.reason === "partial") return { kind: "dim", label: "PARTIAL", excluded: true };
   if (r.r == null && r.stop == null) return { kind: "mid", label: "NO STOP", excluded: true };
@@ -85,7 +90,7 @@ export function Scoreboard({ stats }: { stats: Stats }) {
     </div>
     <div className="grid g3" style={{ marginTop: 12 }}>
       <Kpi label="TIER" value={stats.tier.tier} sub={stats.tier.note} tone="gold" />
-      <Kpi label="COUNTED / EXCLUDED" value={`n = ${stats.n}`} sub={`${stats.excluded.total} excluded: no stop ${stats.excluded.noStop} · partial ${stats.excluded.partial} · open ${stats.excluded.open}${stats.excluded.badR ? " · no R " + stats.excluded.badR : ""}`} />
+      <Kpi label="COUNTED / EXCLUDED" value={`n = ${stats.n}`} sub={`${stats.excluded.total} excluded: no stop ${stats.excluded.noStop} · partial ${stats.excluded.partial} · open ${stats.excluded.open}${stats.excluded.badR ? " · no R " + stats.excluded.badR : ""}${stats.others && Object.keys(stats.others).length ? " · not scalp: " + Object.entries(stats.others).map(([k, n]) => ownerLabel(k).toLowerCase() + " " + n).join(", ") : ""}`} />
       <Kpi label="WIN RATE" value={stats.n ? (stats.winRate * 100).toFixed(0) + "%" : "—"} sub={`breach window: last ${stats.windowSize} flat trades${stats.mixedRuleVersions ? " · mixed rule versions" : ""}`} tone={stats.n < v.minTrades ? "noise" : ""} />
     </div>
     {Object.keys(stats.breachCounts).length ? <div className="warn-banner" style={{ marginTop: 12 }}>Breaches in window: {Object.entries(stats.breachCounts).map(([k, n]) => `${k} ×${n}`).join(" · ")}</div> : null}
@@ -95,8 +100,8 @@ export function Scoreboard({ stats }: { stats: Stats }) {
 /* ---------------- equity + drawdown curve (inline SVG) ---------------- */
 export function EquityCurve({ stats, entries, snapshots }: { stats: Stats; entries: RoundTrip[]; snapshots: Record<string, RegimeSnapshot> }) {
   const [mode, setMode] = useState<"R" | "$">("R");
-  const counted = entries.filter(e => e.src === "alpaca" && e.r != null && E.isFlat(e)).slice().reverse();
-  const excluded = entries.filter(e => e.src === "alpaca" && !(e.r != null && E.isFlat(e)));
+  const counted = entries.filter(e => e.src === "alpaca" && isScalp(e) && e.r != null && E.isFlat(e)).slice().reverse();
+  const excluded = entries.filter(e => e.src === "alpaca" && isScalp(e) && !(e.r != null && E.isFlat(e)));
   const path = mode === "R" ? stats.rPath : stats.pnlPath;
   const W = 900, H = 300, L = 48, R = 16, T = 28, B = 36;
   const n = path.length;
@@ -149,7 +154,7 @@ export function TradesTable({ data }: { data: Evidence }) {
   const rows = useMemo(() => {
     let l = data.entries.filter(e => e.src === "alpaca");
     if (f.regime) l = l.filter(e => (e.regime || "UNKNOWN") === f.regime);
-    if (f.breach === "clean") l = l.filter(e => !e.breaches?.length);
+    if (f.breach === "clean") l = l.filter(e => e.breaches != null && !e.breaches.length);
     else if (f.breach) l = l.filter(e => e.breaches?.includes(f.breach));
     if (f.status === "counted") l = l.filter(e => !statusOf(e).excluded);
     else if (f.status === "excluded") l = l.filter(e => statusOf(e).excluded);
