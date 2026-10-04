@@ -10,5 +10,7 @@ IDLE="${FEED_IDLE:-1800}"
 while true; do
   feed-run
   h=$(date -u +%H); d=$(date -u +%u)
-  if [ "$d" -le 5 ] && [ "$h" -ge 12 ] && [ "$h" -lt 23 ]; then sleep "$EVERY"; else sleep "$IDLE"; fi
+  # nothing published yet (fresh deploy, vault still cloning): come back sooner
+  if [ ! -f /public/status.json ]; then sleep 300
+  elif [ "$d" -le 5 ] && [ "$h" -ge 12 ] && [ "$h" -lt 23 ]; then sleep "$EVERY"; else sleep "$IDLE"; fi
 done
