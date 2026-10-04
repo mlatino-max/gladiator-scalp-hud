@@ -10,7 +10,7 @@ server is deliberately absent: it can place paper orders and stays on the PC.
 
 | file | role |
 |---|---|
-| `docker-compose.yml` | `vault-sync`, `hud`, `cron`, `hermes`, `caddy` |
+| `docker-compose.yml` | `vault-sync`, `hud`, `cron`, `hermes`, `feed`, `caddy` |
 | `vault-sync.sh` | keeps `/vault/repo` at the tip of `master`, allowlisted folders only |
 | `Caddyfile` | `HUD_HOST` → `hud:3000` with automatic Let's Encrypt |
 | `setup-vm.sh` | one-time host prep: Docker, iptables 80/443, checkout, `.env` |
@@ -55,6 +55,30 @@ Turn it on (VM, in `deploy/oracle`):
 To seed the archive with the record from before the cloud sleeves existed, copy
 the PC's `rsi2/rsi2.log`, `trend/trend.log` and `ALERT.txt` into
 `/data/hermes/bot` once, before the first run; later runs only append.
+
+## Synaptic HUD feed (`feed` sidecar)
+
+Replaces the desktop routine `synaptic-feed`, which only ran while the PC was
+on and the Claude app was open. `docker/feed` is Python (stdlib) plus git: the
+scripts (`feed_vm.py`, `agents.py`) are run in place from the vault clone,
+`Projects/Trading/SYNAPTIC-HUD`. Every `FEED_EVERY` seconds in market hours
+(`FEED_IDLE` otherwise) it writes four files to the `feed-public` volume, and
+Caddy serves them **without the token** at `https://$HUD_HOST/feed/`:
+`pc.json`, `account.json`, `agents.json`, `status.json`. They hold paper-desk
+state only (equity, positions, agent statistics); no key, token or account
+number. This is the one public path on the host, decided 2026-10-03 because
+the Synaptic HUD page on claude.ai can only read public addresses.
+
+Turn it on:
+
+1. `touch secrets/hermes_deploy_key` (or put the read-only deploy key for
+   `mlatino-max/hermes-trading` there, mode 600), optionally add
+   `QQQ_CRON_SECRET=` to `.env`.
+2. `sudo docker compose up -d --build feed caddy`
+3. `sudo docker compose logs feed` shows `feed <time>: ok | agents: …`; then
+   `curl https://$HUD_HOST/feed/status.json`.
+
+One pass on demand: `sudo docker compose exec -T feed feed-run`.
 
 ## DNS: gladiatorhud.com
 
