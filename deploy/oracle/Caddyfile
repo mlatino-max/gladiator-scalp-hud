@@ -3,7 +3,19 @@
 # listens on a public port.
 {$HUD_HOST} {
 	encode gzip
-	reverse_proxy hud:3000
+	# Public, read-only Synaptic HUD feed (paper-desk state, no secrets): the
+	# only path that is not behind HUD_ACCESS_TOKEN. Static files written by the
+	# `feed` sidecar; nothing here reaches the HUD or the broker.
+	handle_path /feed/* {
+		root * /srv/feed
+		header Cache-Control "no-store"
+		header Access-Control-Allow-Origin "*"
+		header X-Robots-Tag "noindex, nofollow"
+		file_server
+	}
+	handle {
+		reverse_proxy hud:3000
+	}
 }
 
 www.{$HUD_HOST} {

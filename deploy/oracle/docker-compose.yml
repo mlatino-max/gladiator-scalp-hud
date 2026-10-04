@@ -90,6 +90,39 @@ services:
       - vault-sync
       - hud
 
+  feed:
+    # Synaptic HUD feed: builds pc.json, account.json and agents.json (the
+    # state of every trading agent and the shared PAPER account) and leaves
+    # them on the feed-public volume, which Caddy serves at /feed/*. Those
+    # files are PUBLIC by Matt's decision (2026-10-03): the Synaptic HUD page
+    # on claude.ai can only read public addresses. No key, token or account
+    # number is written. Runs feed_vm.py in place from the read-only vault
+    # clone. Read-only against everything: it never places an order.
+    build: ../../docker/feed
+    image: gladiator-feed:oracle
+    init: true
+    restart: unless-stopped
+    environment:
+      ALPACA_API_KEY: ${ALPACA_API_KEY:-}
+      ALPACA_SECRET_KEY: ${ALPACA_SECRET_KEY:-}
+      KV_REST_API_URL: ${KV_REST_API_URL:-}
+      KV_REST_API_TOKEN: ${KV_REST_API_TOKEN:-}
+      HUD_ACCESS_TOKEN: ${HUD_ACCESS_TOKEN:-}
+      HUD_EVIDENCE_URL: http://hud:3000/api/evidence
+      HUD_INTERNAL_URL: http://hud:3000
+      HUD_HOST: ${HUD_HOST:-gladiatorhud.com}
+      QQQ_CRON_SECRET: ${QQQ_CRON_SECRET:-}
+      HERMES_REPO: ${HERMES_REPO:-git@github.com:mlatino-max/hermes-trading.git}
+      FEED_EVERY: ${FEED_EVERY:-600}
+      FEED_IDLE: ${FEED_IDLE:-1800}
+    volumes:
+      - feed-public:/public
+      - vault:/vault:ro
+      - ./secrets/hermes_deploy_key:/keys/hermes_deploy_key:ro
+    depends_on:
+      - vault-sync
+      - hud
+
   caddy:
     image: caddy:2.10-alpine
     restart: unless-stopped
@@ -102,11 +135,13 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
+      - feed-public:/srv/feed:ro
     depends_on:
       - hud
 
 volumes:
   hud-data:
   vault:
+  feed-public:
   caddy-data:
   caddy-config:
