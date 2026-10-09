@@ -36,8 +36,19 @@ Alpaca (paper) ──► lib/alpaca.js ──► lib/services.js ──► app/a
 `/evidence/trades` every round trip, excluded rows greyed with reason,
 drill-down drawer with fills, FIFO match and the hand-check formula ·
 `/evidence/regime` results by regime + first-blocking-gate on no-trade days ·
-`/journal/[date]` daily note + fills + ticket · `/lab` · `/playbook` · `/ops`.
-Keys `0-4 e j r a p o`, `Ctrl+K` palette.
+`/journal/[date]` daily note + fills + ticket · `/lab` · `/playbook` · `/ops` ·
+`/drift` Liquidity Drift, the paper book drawn as a flow field.
+Keys `0-4 e j r d a p o`, `Ctrl+K` palette.
+
+`/drift` reads one endpoint, `GET /api/flowstate` (token-guarded, 15 s
+server cache, 3 s timeout per upstream source). Its contract is
+`lib/flowstate-schema.js`: every numeric field is a number or `null`, and a
+null keeps the panel's seeded default for that parameter. The mappings from
+payload to field live in `lib/drift-map.js`; every driven slider has a
+LIVE / MAN toggle. Particle exits draw their R from the journal's recent
+closes (last 50 weighted 3x), so the win share on screen is the book's.
+Read-only like everything else here: `tests/drift-readonly.test.mjs` fails
+the build if the panel or its data path names an order route.
 
 ## Deploy (Vercel)
 

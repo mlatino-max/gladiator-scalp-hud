@@ -217,3 +217,26 @@ footer.tick{grid-area:tick;overflow:hidden;border-top:1px solid var(--line);back
 .muted{color:var(--dim)}
 .mono{font-family:var(--mono)}
 .up{color:var(--ok)} .down{color:var(--bad)}
+
+/* Liquidity Drift (/drift) */
+.drift-grid{display:grid;grid-template-columns:280px minmax(0,1fr);gap:14px;align-items:start}
+.drift-side{max-height:calc(100vh - 190px);overflow:auto}
+.drift-side h3{font-family:var(--disp);font-size:11px;letter-spacing:.2em;color:var(--orange);margin:14px 0 8px}
+.drift-side h3:first-child{margin-top:0}
+.drift-ctl{margin-bottom:12px}
+.drift-ctl .hint{display:block;font-size:11px;color:var(--dim);margin:1px 0 4px}
+.drift-lab{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px;font-weight:600}
+.drift-mode{border:1px solid var(--line);background:rgba(0,20,40,.5);border-radius:999px;padding:1px 8px;font-size:10px;letter-spacing:.12em;cursor:pointer;font-family:var(--mono)}
+.drift-mode.live{color:var(--ok);border-color:rgba(57,255,154,.45)}
+.drift-mode.manual{color:var(--yellow);border-color:rgba(255,225,74,.45)}
+.drift-slider{display:flex;align-items:center;gap:10px}
+.drift-slider input{flex:1;accent-color:var(--orange)}
+.drift-slider .mono{font-family:var(--mono);font-size:12px;color:var(--dim);min-width:52px;text-align:right}
+.drift-seed,.drift-select{width:100%;background:rgba(0,20,40,.5);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:var(--mono);margin-bottom:8px}
+.drift-row{display:flex;gap:6px;margin-bottom:6px}
+.drift-row button{flex:1;background:rgba(0,20,40,.6);border:1px solid var(--line);border-radius:6px;padding:7px 6px;cursor:pointer;font-size:12px;letter-spacing:.06em}
+.drift-row button:hover{border-color:var(--cyan);color:var(--cyan)}
+.drift-foot{font-size:12px;margin:10px 0 0}
+.drift-canvas{border-radius:12px;overflow:hidden;background:#0e0f12;border:1px solid var(--line);box-shadow:0 20px 40px rgba(0,0,0,.45);min-height:200px}
+.drift-canvas canvas{display:block;width:100% !important;height:auto !important}
+@media (max-width:900px){.drift-grid{grid-template-columns:1fr}.drift-side{max-height:none;order:2}}
